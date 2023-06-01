@@ -115,12 +115,20 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     dp_curr = Eigen::VectorXd::Zero( 3 );
 
     // Create the Minimum-jerk trajectory
-    double  D = 3.0;
-    double ti = 2.0;
+    double  D   = 3.0;
+    double ti   = 2.0;
+    double toff = 2.0;
     p0i = p_curr;
-    p0f = p_curr + Eigen::Vector3d( 0.0, 0.3, 0.0 );
 
-    mjt = new MinimumJerkTrajectory( 3, p0i, p0f, D, ti );
+    delx = Eigen::Vector3d( 0.3, 0.0, 0.0 );
+    dely = Eigen::Vector3d( 0.0, 0.3, 0.0 );
+
+    mjt1 = new MinimumJerkTrajectory( 3,                              p0i,    p0i + dely, D,                    ti );
+    mjt2 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),        - dely, D, ti + 1 * ( D + toff ) );
+    mjt3 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),        - dely, D, ti + 2 * ( D + toff ) );
+    mjt4 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),          dely, D, ti + 3 * ( D + toff ) );
+
+    t_freq = ti + 4 * ( D + toff );
 
     // The taus (or torques) for the command
     tau_ctrl   = Eigen::VectorXd::Zero( myLBR->nq );    // The torque from the controller design,
@@ -315,13 +323,23 @@ void MyLBRClient::command()
     std::cout << "End-effector Velocity: " << dp_curr << std::endl;
 
     // Get the virtual trajectory
-    p0  = mjt->getPosition( t );
-    dp0 = mjt->getVelocity( t );
+    p01  = mjt1->getPosition( std::fmod( t, t_freq ) );
+    dp01 = mjt1->getVelocity( std::fmod( t, t_freq ) );
+    p02  = mjt2->getPosition( std::fmod( t, t_freq ) );
+    dp02 = mjt2->getVelocity( std::fmod( t, t_freq ) );
+    p03  = mjt3->getPosition( std::fmod( t, t_freq ) );
+    dp03 = mjt3->getVelocity( std::fmod( t, t_freq ) );
+    p04  = mjt4->getPosition( std::fmod( t, t_freq ) );
+    dp04 = mjt4->getVelocity( std::fmod( t, t_freq ) );
+
+    p0  =  p01 +  p02 +  p03 +  p04;
+    dp0 = dp01 + dp02 + dp03 + dp04;
 
     // Calculate the tau
     tau_ctrl = Jp.transpose( ) * ( Kp * ( p0 - p_curr ) + Bp * ( dp0 - dp_curr ) ) + Bq * ( -dq );
 
     myfile << p0 << std::endl;
+    myfile << dp0 << std::endl;
 
     end = std::chrono::steady_clock::now( );
 

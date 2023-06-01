@@ -124,10 +124,22 @@ private:
 
     // The virtual task-space trajectory, position.
     Eigen::Vector3d p0;
+    Eigen::Vector3d p01;
+    Eigen::Vector3d p02;
+    Eigen::Vector3d p03;
+    Eigen::Vector3d p04;
+
     Eigen::Vector3d dp0;
+    Eigen::Vector3d dp01;
+    Eigen::Vector3d dp02;
+    Eigen::Vector3d dp03;
+    Eigen::Vector3d dp04;
+
+    double t_freq;
 
     Eigen::Vector3d p0i;
-    Eigen::Vector3d p0f;
+    Eigen::Vector3d delx;
+    Eigen::Vector3d dely;
 
     // Current position and velocity as Eigen vector
     Eigen::VectorXd q;
@@ -148,7 +160,11 @@ private:
     Eigen::Matrix3d Bp;     // Task-space damping, position
     Eigen::MatrixXd Bq;     // Joint-space damping.
 
-    MinimumJerkTrajectory *mjt;
+    MinimumJerkTrajectory *mjt1;
+    MinimumJerkTrajectory *mjt2;
+    MinimumJerkTrajectory *mjt3;
+    MinimumJerkTrajectory *mjt4;
+
     std::ofstream myfile;
 
     std::chrono::steady_clock::time_point start;
