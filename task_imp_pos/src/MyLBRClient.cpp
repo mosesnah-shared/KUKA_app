@@ -72,8 +72,8 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     // !! WARNING !!
     // THESE JOINT POSITION VALUES MUST BE THE SAME WITH THE JAVA APPLICATION!!
     q_init[0] = -2.46  * M_PI/180;
-    q_init[1] = 28.56  * M_PI/180;
-    q_init[2] = 17.54  * M_PI/180;
+    q_init[1] =  28.56 * M_PI/180;
+    q_init[2] =  17.54 * M_PI/180;
     q_init[3] = -87.36 * M_PI/180;
     q_init[4] = -7.82  * M_PI/180;
     q_init[5] = 75.56  * M_PI/180;
@@ -148,6 +148,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     printf( "The current script runs Task-space Impedance Control, Position\n" );
 
     myfile.open( "ttmp_data.txt" );
+
 
 }
 
@@ -297,7 +298,7 @@ void MyLBRClient::command()
     // ********************* CONTROLLER START ********************* //
     // ************************************************************ //
 
-    static auto start = std::chrono::steady_clock::now( );
+    start = std::chrono::steady_clock::now( );
     H = myLBR->getForwardKinematics( q );
     p_curr = H.block< 3, 1 >( 0, 3 );
 
@@ -322,7 +323,7 @@ void MyLBRClient::command()
 
     myfile << p0 << std::endl;
 
-    static auto end = std::chrono::steady_clock::now( );
+    end = std::chrono::steady_clock::now( );
 
     std::cout << "Elapsed time for The Torque Calculation "
               << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()

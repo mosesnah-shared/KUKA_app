@@ -40,6 +40,7 @@ or otherwise, without the prior written consent of KUKA Roboter GmbH.
 #define _KUKA_FRI_MY_LBR_CLIENT_H
 
 #include <fstream>
+#include <chrono>
 #include "friLBRClient.h"
 #include "exp_robots.h"
 #include "exp_trajs.h"
@@ -149,6 +150,10 @@ private:
 
     MinimumJerkTrajectory *mjt;
     std::ofstream myfile;
+
+    std::chrono::steady_clock::time_point start;
+    std::chrono::steady_clock::time_point end;
+
 
 
 };
