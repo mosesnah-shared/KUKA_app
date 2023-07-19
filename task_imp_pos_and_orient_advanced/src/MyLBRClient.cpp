@@ -39,46 +39,16 @@ or otherwise, without the prior written consent of KUKA Roboter GmbH.
 \file
 \version {1.9}
 */
-
-
+#include <stdio.h>
 #include <iostream>
 #include <fstream>
-#include <cmath>
-#include <cstdio>
+#include <string.h>
+#include <math.h>
 #include <chrono>
-#include <string>
-#include <cstdint>
-#include <csignal>
-#include <iomanip>
-#include <iostream>
-#include <array>
-#include <cassert>
-#include <cstdlib>
-#include <thread>
-
-
 
 #include "MyLBRClient.h"
 #include "exp_robots.h"
 #include "exp_trajs.h"
-
-#include "MyCameraApp.h"
-#include "Text.h"
-#include "CRSDK/CameraRemote_SDK.h"
-
-// The openCV libraries
-#include <opencv2/core.hpp>
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/highgui.hpp>
-
-
-using namespace cv;
-
-#define MSEARCH_ENB
-
-// Set the acronym of SCRSDK (Sony Camera Remote SDK)
-namespace SDK = SCRSDK;
-
 
 using namespace std;
 
@@ -93,115 +63,10 @@ using namespace std;
 static double filterOutput[ 7 ][ NCoef+1 ]; // output samples. Static variables are initialised to 0 by default.
 static double  filterInput[ 7 ][ NCoef+1 ]; //  input samples. Static variables are initialised to 0 by default.
 
-// boolean variable to stop the thread.
-bool is_cam_on = true;
-
-// Initialization of the objective value
-int obj_val = 0;
-
-void clean_up( int signal )
-{
-    if (signal == SIGINT)
-    {
-        // Turn off camera
-        is_cam_on = false;
-
-        //
-        std::cout << "Turning off the camera" << std::endl;
-
-        // Wait for the turning off to happen
-        std::this_thread::sleep_for( std::chrono::milliseconds( 500 ) );
-
-        // Exit program
-        exit( 0 );
-    }
-}
-
-// The separate thread which should be run
-CrInt32u run_live_camera( )
-{
-
-
-    // Initialize the SDK environment
-    init_SDK( );
-
-    // List and select the specific camera to open
-    CameraDevicePtr camera = list_and_select_camera( );
-
-    // Initialize the camera and get the buffer size
-    CrInt32u bufSize = init_camera( camera );
-
-    // The Initialization of the main loop
-    SDK::CrImageDataBlock* image_data = new SDK::CrImageDataBlock( );
-    CrInt8u* image_buff = new CrInt8u[ bufSize ];
-    image_data->SetSize( bufSize    );
-    image_data->SetData( image_buff );
-
-    // In case if you want to do error handling
-    SDK::CrError err;
-
-    int cnt = 0;
-
-    while( is_cam_on )
-    {
-        // Get the Live View Image
-        SDK::GetLiveViewImage( camera->m_device_handle, image_data );
-
-
-        // If there is a given image input
-        if ( 0 < image_data->GetSize( ) )
-        {
-
-            char* tmp_arr;
-            // The data and the integer
-            // GetImageSize output is CrInt32u, i.e., u_int32_t
-            // GetImageData output is CrInt8u*, i.e., unsigned char
-            // This is a char array with jpg format. Need to decode.
-            tmp_arr = (char*)image_data->GetImageData( );
-
-            // Since this is in JPG format, we need to convert this to RGB.
-            Mat rawData( 1, image_data->GetImageSize( ), CV_8SC1, (void*)tmp_arr );
-
-            // Raw RGB Data
-            Mat decodedMat = imdecode( rawData, IMREAD_COLOR );
-
-            imshow( "Display window", decodedMat );
-            waitKey( 1 );
-
-        }
-        cnt++;
-
-        obj_val = cnt;
-
-    }
-
-    // END of Main Loop
-    delete[] image_buff; // Release
-    delete   image_data; // Release
-
-    if ( camera->is_connected( ) )
-    {
-        camera->disconnect( );
-    }
-
-    cli::tout << "Release SDK resources.\n";
-    SDK::Release( );
-
-    cli::tout << "Exiting application.\n";
-    std::exit( EXIT_SUCCESS );
-}
 
 //******************************************************************************
 MyLBRClient::MyLBRClient(double freqHz, double amplitude)
 {
-    // Define Boost for multi-threading
-    std::thread cameraThread( run_live_camera );
-
-    // Run the Thread separately
-    cameraThread.detach( );
-
-    // Setup the Ctrl+C interrupt.
-    std::signal(SIGINT, clean_up );
 
     /** Initialization */
     // !! WARNING !!
@@ -508,8 +373,6 @@ void MyLBRClient::command()
 
     end = std::chrono::steady_clock::now( );
 
-    std::cout  << "[Objective Value]" << obj_val << std::endl;
-
     std::cout << "Elapsed time for The Torque Calculation "
               << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
               << " us" << std::endl;
@@ -553,6 +416,5 @@ void MyLBRClient::command()
     // Add the sample time to the current time
     t += ts;
     n_step++;
-
 
 }
