@@ -45,6 +45,7 @@ or otherwise, without the prior written consent of KUKA Roboter GmbH.
 #include <string.h>
 #include <math.h>
 #include <chrono>
+#include <iomanip>
 
 #include "MyLBRClient.h"
 #include "exp_robots.h"
@@ -71,13 +72,13 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     /** Initialization */
     // !! WARNING !!
     // THESE JOINT POSITION VALUES MUST BE THE SAME WITH THE JAVA APPLICATION!!
-    q_init[0] = -2.46  * M_PI/180;
+    q_init[0] =   0.00 * M_PI/180;
     q_init[1] =  28.56 * M_PI/180;
     q_init[2] =  17.54 * M_PI/180;
     q_init[3] = -87.36 * M_PI/180;
-    q_init[4] = -7.82  * M_PI/180;
-    q_init[5] = 75.56  * M_PI/180;
-    q_init[6] = -9.01  * M_PI/180;
+    q_init[4] = -7.820 * M_PI/180;
+    q_init[5] = 75.560 * M_PI/180;
+    q_init[6] = -9.010 * M_PI/180;
 
     // Use Explicit-cpp to create your robot
     myLBR = new iiwa14( 1, "Dwight" );
@@ -125,7 +126,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     p0i = p_curr;
 
     delx = Eigen::Vector3d( 0.3, 0.0, 0.0 );
-    dely = Eigen::Vector3d( 0.0, 0.3, 0.0 );
+    dely = Eigen::Vector3d( 0.0, 0.2, 0.0 );
 
     mjt1 = new MinimumJerkTrajectory( 3,                              p0i,    p0i + dely, D,                    ti );
     mjt2 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),        - dely, D, ti + 1 * ( D + toff ) );
@@ -140,6 +141,10 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     tau_pprev  = Eigen::VectorXd::Zero( myLBR->nq );    // The previous-previous torque, i.e., tau_{n-2} where tau_n is current value
     tau_total  = Eigen::VectorXd::Zero( myLBR->nq );    // The total tau which will be commanded
 
+    tau_imp1   = Eigen::VectorXd::Zero( myLBR->nq );    // Position    Task-space  Impedance Control
+    tau_imp2   = Eigen::VectorXd::Zero( myLBR->nq );    // Orientation Task-space  Impedance Control
+    tau_imp3   = Eigen::VectorXd::Zero( myLBR->nq );    //             Joint-space Impedance Control
+
     w_axis_mat = Eigen::Matrix3d::Zero( 3, 3 );
     w_axis     = Eigen::Vector3d::Zero( 3 );
 
@@ -150,10 +155,10 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     Jr = Eigen::MatrixXd::Zero( 3, myLBR->nq );
 
     // The stiffness/damping matrices
-    Kp = 200 * Eigen::MatrixXd::Identity( 3, 3 );
-    Bp =  20 * Eigen::MatrixXd::Identity( 3, 3 );
+    Kp = 800 * Eigen::MatrixXd::Identity( 3, 3 );
+    Bp =  80 * Eigen::MatrixXd::Identity( 3, 3 );
 
-    Bq = 0.5 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
+    Bq = 1.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
 
     // Initial print
     printf( "Exp[licit](c)-cpp-FRI, https://explicit-robotics.github.io \n\n" );
@@ -162,7 +167,9 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     printf( "' initialised. Ready to rumble! \n" );
     printf( "The current script runs Task-space Impedance Control, Position\n" );
 
-    myfile.open( "ttmp_data.txt" );
+        // Open a file
+    f.open( "tmp.txt" );
+    fmt = Eigen::IOFormat(5, 0, ", ", "\n", "[", "]");
 
 
 }
@@ -174,7 +181,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
 */
 MyLBRClient::~MyLBRClient()
 {
-    myfile.close( );
+    f.close( );
 }
 
 /**
@@ -323,7 +330,7 @@ void MyLBRClient::command()
 
     theta = acos( ( R_del.trace( ) - 1 )/2 );
 
-    if( theta <= 0.01 )
+    if( theta >= 0.01 )
     {
         w_axis_mat = ( R_del - R_del.transpose( ) ) / ( 2 * sin( theta ) );
     }
@@ -346,10 +353,6 @@ void MyLBRClient::command()
     // Calculate the current end-effector's position
     dp_curr = Jp * dq;
 
-    std::cout << "Joint Position" << q << std::endl;
-    std::cout << "End-effector Position: " <<  p_curr << std::endl;
-    std::cout << "End-effector Velocity: " << dp_curr << std::endl;
-
     // Get the virtual trajectory
     p01  = mjt1->getPosition( std::fmod( t, t_freq ) );
     dp01 = mjt1->getVelocity( std::fmod( t, t_freq ) );
@@ -364,13 +367,18 @@ void MyLBRClient::command()
     dp0 = dp01 + dp02 + dp03 + dp04;
 
     // Calculate the tau
-    tau_ctrl = Jp.transpose( ) * ( Kp * ( p0 - p_curr ) + Bp * ( dp0 - dp_curr ) ) +
-               Jr.transpose( ) * ( 500 * R_curr * w_axis * theta - 10 * Jr * dq )  +
-               Bq * ( -dq );
+    tau_imp1 = Jp.transpose( ) * ( Kp * ( p0i - p_curr ) + Bp * ( - dp_curr ) );
+//    tau_imp1 = Jp.transpose( ) * ( Kp * ( p0 - p_curr ) + Bp * ( dp0 - dp_curr ) );
+    tau_imp2 = Bq * ( -dq );
+//    tau_imp3 = Jr.transpose( ) * ( 50 * R_curr * w_axis * theta - 5 * Jr * dq );
 
-    myfile << p0 << std::endl;
-    myfile << dp0 << std::endl;
+    // Superposition of Mechanical Impedances
+    tau_ctrl = tau_imp1 + tau_imp2 + tau_imp3;
 
+
+    f << "Time: " << std::fixed << std::setw( 5 ) << t;
+    f << "  q values: " << q.transpose( ).format( fmt );
+    f << " p0 values: " << p0.transpose( ).format( fmt ) << std::endl;
     end = std::chrono::steady_clock::now( );
 
     std::cout << "Elapsed time for The Torque Calculation "
@@ -416,5 +424,12 @@ void MyLBRClient::command()
     // Add the sample time to the current time
     t += ts;
     n_step++;
+
+    // if time is higher than some value, reset
+    if( t >= 20.0 )
+    {
+        t = 0;
+        n_step = 0;
+    }
 
 }

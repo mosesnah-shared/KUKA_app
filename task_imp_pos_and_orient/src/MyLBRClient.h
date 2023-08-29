@@ -148,6 +148,9 @@ private:
     // Command torque vectors (with and without constraints)
     Eigen::VectorXd tau_ctrl;
     Eigen::VectorXd tau_prev;
+    Eigen::VectorXd tau_imp1;
+    Eigen::VectorXd tau_imp2;
+    Eigen::VectorXd tau_imp3;
     Eigen::VectorXd tau_pprev;
     Eigen::VectorXd tau_total;
 
@@ -168,9 +171,6 @@ private:
     MinimumJerkTrajectory *mjt2;
     MinimumJerkTrajectory *mjt3;
     MinimumJerkTrajectory *mjt4;
-
-    std::ofstream myfile;
-
     std::chrono::steady_clock::time_point start;
     std::chrono::steady_clock::time_point end;
 
@@ -179,6 +179,9 @@ private:
     Eigen::Matrix3d w_axis_mat;
     Eigen::Vector3d w_axis;
 
+    // File for Saving the Data
+    std::ofstream f;
+    Eigen::IOFormat fmt;
 };
 
 #endif // _KUKA_FRI_MY_LBR_CLIENT_H
