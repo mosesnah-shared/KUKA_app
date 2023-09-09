@@ -128,7 +128,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude){
     qInitial[3] = -87.36  * M_PI/180;
     qInitial[4] =  -7.82  * M_PI/180;
     qInitial[5] =  75.56  * M_PI/180;
-    qInitial[6] =  -9.01  * M_PI/180;
+    qInitial[6] =  90.00  * M_PI/180;
 
     // Use Explicit-cpp to create your robot
     myLBR = new iiwa14( 1, "Dwight");
@@ -187,8 +187,8 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude){
 
     // Read a csv file for position
     // Copy paste the link
-    pos_data = csv_to_mat( "/home/baxterplayground/Documents/DMP-MATLAB/data/example4/pos_data.csv" );
-    vel_data = csv_to_mat( "/home/baxterplayground/Documents/DMP-MATLAB/data/example4/vel_data.csv" );
+    pos_data = csv_to_mat( "/home/baxterplayground/Documents/DMP-MATLAB/data/example6/pos_data.csv" );
+    vel_data = csv_to_mat( "/home/baxterplayground/Documents/DMP-MATLAB/data/example6/vel_data.csv" );
 
     if ( pos_data.rows() == 0 || vel_data.rows( ) == 0 )
     {
@@ -223,7 +223,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude){
     N_curr_pos = 0;
 
     // Read a csv file for rotation.
-    R_data = csv_to_mat( "/home/baxterplayground/Documents/DMP-MATLAB/data/example3/orientation_del_data.csv" );
+    R_data = csv_to_mat( "/home/baxterplayground/Documents/DMP-MATLAB/data/example6/orientation_del_data.csv" );
     std::cout << "Matrix size: " << R_data.rows() << " rows x " << R_data.cols() << " columns" << std::endl;
 
     // Number of data points, orientation
@@ -386,7 +386,7 @@ void MyLBRClient::command()
     {
         // Turn on/off
         is_run_imit_pos    = true;
-        is_run_imit_orient = true;
+        is_run_imit_orient = false;
 
         // Get the position of current
         H = myLBR->getForwardKinematics( q );
@@ -444,9 +444,9 @@ void MyLBRClient::command()
         // Maintain R_init Posture
 
         // Get the desired orientation from data
-        R_des = R_init * R_data.block< 3, 3 >( 0, 3*( N_curr_orient ) );
+//        R_des = R_init * R_data.block< 3, 3 >( 0, 3*( N_curr_orient ) );
 
-//        R_des = R_init;
+        R_des = R_init;
         R_del = R_curr.transpose( ) * R_des;
 
 

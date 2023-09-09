@@ -115,6 +115,7 @@ private:
     // Time parameters for control loop
     double ts;
     double t;
+    double t_sub; // Separate t_sub is useful
     double t_max;
 
     // The number of time steps for the simulation
@@ -126,28 +127,39 @@ private:
 
     // The virtual task-space trajectory, position.
     Eigen::Vector3d p0;
-    Eigen::Vector3d p01;
-    Eigen::Vector3d p02;
+    Eigen::Vector3d p0_right;
+    Eigen::Vector3d p0_left;
 
     Eigen::Vector3d dp0;
-    Eigen::Vector3d dp01;
-    Eigen::Vector3d dp02;
 
     double t_freq;
+    double t_rot_tmp;
 
     Eigen::Vector3d p0i;
     Eigen::Vector3d p0_start;
+    Eigen::Vector3d p0_write;
+    Eigen::Vector3d delz;
+
     Eigen::Matrix3d R0i;
+    Eigen::Matrix3d R0_start;
+    Eigen::Matrix3d Rmat0;
+
+    Eigen::Matrix3d Rtmp1;
+    Eigen::Matrix3d Rtmp2;
+    double theta_tmp;
+
+
 
     Eigen::Vector3d del1;
     Eigen::Vector3d del2;
 
     // The box where the robot should play
-    Eigen::Vector3d pmax;
-    Eigen::Vector3d pmin;
+    Eigen::Vector2d pmax;
+    Eigen::Vector2d pmin;
 
     // Current position and velocity as Eigen vector
     Eigen::VectorXd q;
+    Eigen::VectorXd q_start;
     Eigen::VectorXd dq;
 
     // Command torque vectors (with and without constraints)
@@ -161,6 +173,7 @@ private:
 
     // DECLARE VARIABLES FOR YOUR CONTROLLER HERE!!!
     Eigen::Matrix4d H;
+    Eigen::Matrix4d H_start;
     Eigen::MatrixXd J;
     Eigen::MatrixXd Jp;     // The position Jacobian
     Eigen::MatrixXd Jr;     // The rotation Jacobian
@@ -173,28 +186,50 @@ private:
     Eigen::Matrix3d R_curr;  // SO(3) Matrix for the current orientation
     Eigen::Matrix3d R_del;   // SO(3) Matrix for the desired orientation
 
-    MinimumJerkTrajectory *mjt0;
+    double D1;
+    double D2;
+    double ti;
+
+    // From current to set position
     MinimumJerkTrajectory *mjt1;
     MinimumJerkTrajectory *mjt2;
+
+    MinimumJerkTrajectory *mjt3;
+    MinimumJerkTrajectory *mjt4;
+
+    int tmp_freq;
+
     std::chrono::steady_clock::time_point start;
     std::chrono::steady_clock::time_point end;
 
     // The axis-angle of R_del
     double theta;
+    Eigen::Matrix3d w_axis_tmp;
     Eigen::Matrix3d w_axis_mat;
     Eigen::Vector3d w_axis;
 
-    // n_trial of the movement
-    int n_trials;
-    int sgn;
+    // Data from Imitation Learning
+    Eigen::MatrixXd pos_data;
+    Eigen::MatrixXd vel_data;
+
+    // Number of data points, position
+    int N_imit_pos;
+    int N_curr_pos;
+
+    // Radius and angular velocity of the oscillation
+    double r_osc;
+    double omega_osc;
 
     // File for Saving the Data
     std::ofstream f;
     Eigen::IOFormat fmt;
 
-    bool is_continue;
+    bool is_erase;
     bool is_pressed;
-    bool is_first_mov_done;
+    bool is_run_imit_pos;
+    bool is_all_done;
+    bool is_lift_up;
+
 
 };
 

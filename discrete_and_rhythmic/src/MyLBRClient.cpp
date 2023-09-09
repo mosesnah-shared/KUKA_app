@@ -74,13 +74,22 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     /** Initialization */
     // !! WARNING !!
     // THESE JOINT POSITION VALUES MUST BE THE SAME WITH THE JAVA APPLICATION!!
-    q_init[0] =   0.00 * M_PI/180;
-    q_init[1] =  28.56 * M_PI/180;
-    q_init[2] =  17.54 * M_PI/180;
-    q_init[3] = -87.36 * M_PI/180;
-    q_init[4] = -7.820 * M_PI/180;
-    q_init[5] = 75.560 * M_PI/180;
-    q_init[6] = -9.010 * M_PI/180;
+    // These values point forward, not downward
+    q_init[0] =   10.03 * M_PI/180;
+    q_init[1] =   54.30 * M_PI/180;
+    q_init[2] =    0.54 * M_PI/180;
+    q_init[3] =  -83.51 * M_PI/180;
+    q_init[4] =  -16.14 * M_PI/180;
+    q_init[5] =  -45.99 * M_PI/180;
+    q_init[6] =  102.20 * M_PI/180;
+
+    //    q_init[0] =   0.00 * M_PI/180;
+    //    q_init[1] =  28.56 * M_PI/180;
+    //    q_init[2] =  17.54 * M_PI/180;
+    //    q_init[3] = -87.36 * M_PI/180;
+    //    q_init[4] = -7.820 * M_PI/180;
+    //    q_init[5] = 75.560 * M_PI/180;
+    //    q_init[6] = -9.010 * M_PI/180;
 
     // Use Explicit-cpp to create your robot
     myLBR = new iiwa14( 1, "Dwight" );
@@ -125,16 +134,19 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     p0i = p_curr;
     R0i = R_curr;
 
+    // delta offset
+    double tmp_del = 0.15;
+
     // Set the right and left position, which is simply defined by delta
-    p0_right = p0i + Eigen::Vector3d( 0.0, -p0i( 1 ) - 0.20, 0.0 );
-    p0_left  = p0i + Eigen::Vector3d( 0.0, -p0i( 1 ) + 0.20, 0.0 );
+    p0_right = p0i + Eigen::Vector3d( 0.12, -p0i( 1 ) - 0.05, 0.0 );
+    p0_left  = p0i + Eigen::Vector3d( 0.12, -p0i( 1 ) + 0.25, 0.0 );
 
     // The current end-effector position
     dp_curr = Eigen::VectorXd::Zero( 3 );
 
     // The movement parameters
     D1 = 3.0;
-    D2 = 1.0;
+    D2 = 2.0;
     ti = 2.0;
 
     // Time for submovement
@@ -176,8 +188,8 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     br = 5;
 
     // Parameters of the oscillatory movement
-    r_osc     = 0.02;
-    omega_osc = 4 * M_PI;
+    r_osc     = 0.03;
+    omega_osc = 3 * M_PI;
 
     // Initial print
     printf( "Exp[licit](c)-cpp-FRI, https://explicit-robotics.github.io \n\n" );
@@ -397,8 +409,8 @@ void MyLBRClient::command()
             }
 
             // Add oscillation
-            p0  += r_osc * Eigen::Vector3d( cos( omega_osc * t ), sin( omega_osc * t ), 0  );
-            dp0 += r_osc * omega_osc * Eigen::Vector3d( -sin( omega_osc * t ), cos( omega_osc * t ), 0  );
+            p0  += r_osc * Eigen::Vector3d( 0, cos( omega_osc * t ), sin( omega_osc * t ) );
+            dp0 += r_osc * omega_osc * Eigen::Vector3d( 0, -sin( omega_osc * t ), cos( omega_osc * t ) );
 
             // Start of time
             t_sub += ts;
