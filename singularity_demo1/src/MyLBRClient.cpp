@@ -46,8 +46,6 @@ or otherwise, without the prior written consent of KUKA Roboter GmbH.
 #include <math.h>
 #include <chrono>
 #include <iomanip>
-#include <random>
-
 
 #include "MyLBRClient.h"
 #include "exp_robots.h"
@@ -74,22 +72,13 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     /** Initialization */
     // !! WARNING !!
     // THESE JOINT POSITION VALUES MUST BE THE SAME WITH THE JAVA APPLICATION!!
-    // These values point forward, not downward
-    q_init[0] =   10.03 * M_PI/180;
-    q_init[1] =   54.30 * M_PI/180;
-    q_init[2] =    0.54 * M_PI/180;
-    q_init[3] =  -83.51 * M_PI/180;
-    q_init[4] =  -16.14 * M_PI/180;
-    q_init[5] =  -45.99 * M_PI/180;
-    q_init[6] =  102.20 * M_PI/180;
-
-    //    q_init[0] =   0.00 * M_PI/180;
-    //    q_init[1] =  28.56 * M_PI/180;
-    //    q_init[2] =  17.54 * M_PI/180;
-    //    q_init[3] = -87.36 * M_PI/180;
-    //    q_init[4] = -7.820 * M_PI/180;
-    //    q_init[5] = 75.560 * M_PI/180;
-    //    q_init[6] = -9.010 * M_PI/180;
+    q_init[0] =  -3.21 * M_PI/180;
+    q_init[1] =  46.19 * M_PI/180;
+    q_init[2] =  17.52 * M_PI/180;
+    q_init[3] = -87.16 * M_PI/180;
+    q_init[4] =  -5.03 * M_PI/180;
+    q_init[5] = -37.73 * M_PI/180;
+    q_init[6] =  0.000 * M_PI/180;
 
     // Use Explicit-cpp to create your robot
     myLBR = new iiwa14( 1, "Dwight" );
@@ -97,16 +86,22 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     // Initialization must be called!!
     myLBR->init( );
 
-    // Initialization Of current position and velocity
+    // Current position and velocity
     // These two variables are used as "Eigen" objects rather than a double array
     q  = Eigen::VectorXd::Zero( myLBR->nq );
     dq = Eigen::VectorXd::Zero( myLBR->nq );
+    q0_init = Eigen::VectorXd::Zero( myLBR->nq );
+
+    // Time variables for control loop
+    t      = 0;     // The current Time
+    ts     = 0;     // The  sample Time
+    n_step = 0;     // The number of time steps, integer
 
     // Initialize joint torques and joint positions (also needed for waitForCommand()!)
     for( int i=0; i < myLBR->nq; i++ )
     {
         q( i ) = q_init[ i ];
-
+        q0_init( i ) = q_init[ i ];
         q_curr[ i ] = q_init[ i ];
          q_old[ i ] = q_init[ i ];
 
@@ -115,49 +110,37 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
         tau_command[ i ] = 0.0;
     }
 
-    // Time variables for control loop
-    t      = 0;     // The current Time
-    ts     = 0;     // The  sample Time, i.e., dt,
-    n_step = 0;     // The number of time steps, integer
-
-    // Number of trials of the movement
-    n_trials = 0;
-    n_movs   = 0;
-
     // Once Initialized, get the initial end-effector position
     // Forward Kinematics and the current position
     H = myLBR->getForwardKinematics( q );
-    p_curr = H.block< 3, 1 >( 0, 3 );
-    R_curr = H.block< 3, 3 >( 0, 0 );
+    p_curr  = H.block< 3, 1 >( 0, 3 );
+    R_des   = H.block< 3, 3 >( 0, 0 );
 
-    // These values will be the initial values
-    p0i = p_curr;
-    R0i = R_curr;
-
-    // delta offset
-    double tmp_del = 0.15;
-
-    // Set the right and left position, which is simply defined by delta
-    p0_right = p0i + Eigen::Vector3d( -0.1, -p0i( 1 ) + 0.17, 0.20 );
-//    p0_left  = p0i + Eigen::Vector3d( -0.1, -p0i( 1 ) + 0.35, 0.20 );
-
-    // The current end-effector position
+    R_curr  = R_des;
+    R_del   = R_curr.transpose( ) * R_des;
     dp_curr = Eigen::VectorXd::Zero( 3 );
 
-    // The movement parameters
-    D1 = 3.0;
-    D2 = 2.0;
-    ti = 2.0;
+    // Create the Minimum-jerk trajectory
+    D   = 3.5;
+    ti   = 1.0;
+    toff = 0.5;
 
-    // Time for submovement
-    t_sub = 0;
+    p0i = p_curr;
 
-    // The first submovement to move to set position
-    mjt1 = new MinimumJerkTrajectory( 3,  p0i,  p0_right, D1, ti  );
+    delx = Eigen::Vector3d( 0.4, 0.0, 0.0 );
+    dely = Eigen::Vector3d( 0.0, 0.4, 0.0 );
+    delz = Eigen::Vector3d( 0.0, 0.0, 0.4 );
 
-    // The two submovements used for the motion planning
-    mjt2 = new MinimumJerkTrajectory( 3,  p0_right,  p0_right , D2, ti  );
-    mjt3 = new MinimumJerkTrajectory( 3,   p0_right,  p0_right, D2, ti  );
+    mjt1  = new MinimumJerkTrajectory( 3,                              p0i,    p0i + delx, D,                    ti );    // Forward
+    mjt2  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),        - dely, D, ti + 1 * ( D + toff ) );    // Moving Right
+    mjt3  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),          delz, D, ti + 2 * ( D + toff ) );    // Moving Up
+    mjt4  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),      2 * dely, D, ti + 3 * ( D + toff ) );    // Moving Left
+    mjt5  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),     -2 * delz, D, ti + 4 * ( D + toff ) );    // Moving Down
+    mjt6  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),     -1 * dely, D, ti + 5 * ( D + toff ) );    // Moving Right
+    mjt7  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),      1 * delz, D, ti + 6 * ( D + toff ) );    // Moving Up
+    mjt8  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),     -1 * delx, D, ti + 7 * ( D + toff ) );    // Moving Back to the Initial
+
+    t_freq = ti + 8 * ( D + toff );
 
     // The taus (or torques) for the command
     tau_ctrl   = Eigen::VectorXd::Zero( myLBR->nq );    // The torque from the controller design,
@@ -169,7 +152,6 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     tau_imp2   = Eigen::VectorXd::Zero( myLBR->nq );    // Orientation Task-space  Impedance Control
     tau_imp3   = Eigen::VectorXd::Zero( myLBR->nq );    //             Joint-space Impedance Control
 
-    // Axis angle of rotation, se(3) form and R3 form
     w_axis_mat = Eigen::Matrix3d::Zero( 3, 3 );
     w_axis     = Eigen::Vector3d::Zero( 3 );
 
@@ -179,37 +161,26 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     Jp = Eigen::MatrixXd::Zero( 3, myLBR->nq );
     Jr = Eigen::MatrixXd::Zero( 3, myLBR->nq );
 
-    // The Translational stiffness/damping matrices
+    // The stiffness/damping matrices
     Kp = 800 * Eigen::MatrixXd::Identity( 3, 3 );
     Bp =  80 * Eigen::MatrixXd::Identity( 3, 3 );
-    Bq = 2.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
 
-    kr = 50;
-    br = 5;
-
-    // Parameters of the oscillatory movement
-    r_osc     = 0.03;
-    omega_osc = 3 * M_PI;
+    Kq = 4.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
+    Bq = 1.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
 
     // Initial print
     printf( "Exp[licit](c)-cpp-FRI, https://explicit-robotics.github.io \n\n" );
     printf( "Robot '" );
     printf( "%s", myLBR->Name );
     printf( "' initialised. Ready to rumble! \n" );
-    printf( "The current script runs a superposition of submovement + oscillation \n" );
+    printf( "The current script runs Task-space Impedance Control, Position\n" );
 
+    Kq_gain = 0;
 
-    // Open a file
-    f.open( "/home/baxterplayground/Documents/kinematic_modularity/data/sub_and_osc/osc.txt" );
+        // Open a file
+    f.open( "singularity_test1.txt" );
     fmt = Eigen::IOFormat(5, 0, ", ", "\n", "[", "]");
 
-    // Save the imporant parameters for the first line
-    f << " r: " << r_osc << " omega " << omega_osc;
-    f << " p0i: " << p0i.transpose( ).format( fmt );
-    f << " p0_right: " << p0_right.transpose( ).format( fmt );
-    f << " p0_left: " << p0_left.transpose( ).format( fmt ) << std::endl;
-
-    is_pressed = false;
 
 }
 
@@ -344,14 +315,14 @@ void MyLBRClient::command()
     memcpy( q_old, q_curr, 7*sizeof( double ) );
     memcpy( q_curr, robotState( ).getMeasuredJointPosition( ), 7*sizeof(double) );
 
-    for ( int i=0; i < myLBR->nq; i++)
+    for (int i=0; i < myLBR->nq; i++)
     {
         q[ i ] = q_curr[ i ];
     }
 
-    for ( int i=0; i < 7; i++ )
+    for (int i=0; i < 7; i++)
     {
-        dq[ i ] = ( q_curr[ i ] - q_old[ i ] ) / ts;
+        dq[ i ] = ( q_curr[ i ] - q_old[ i ]) / ts;
     }
 
 
@@ -360,91 +331,16 @@ void MyLBRClient::command()
     // ************************************************************ //
 
     start = std::chrono::steady_clock::now( );
-
-
-    // Get the current H matrices
     H = myLBR->getForwardKinematics( q );
     p_curr = H.block< 3, 1 >( 0, 3 );
     R_curr = H.block< 3, 3 >( 0, 0 );
 
-    // Get the Jacobian Matrices
-    // Hybrid Jacobian Matrix (6x7)
-    J  = myLBR->getHybridJacobian( q );
-    Jp = J.block( 0, 0, 3, myLBR->nq );     // linear  velocity part Jp (3x7)
-    Jr = J.block( 3, 0, 3, myLBR->nq );     // angular velocity part Jp (3x7)
-
     // The difference between the two rotation matrices
-    R_del = R_curr.transpose( ) * R0i;
+    R_del   = R_curr.transpose( ) * R_des;
 
-    // Get the current end-effector velocity.
-    dp_curr = Jp * dq;
-
-    // Module1 - Joint-space Impedance Control
-    tau_imp1 = Bq * ( -dq );
-
-    // p0 setup.
-    // This part is the key.
-    if( !is_pressed ) // If not pressed
-    {
-        // Simply move to the p_right position
-        p0  = mjt1->getPosition( t );
-        dp0 = mjt1->getVelocity( t );
-    }
-    else
-    {
-        double toff2 = 4.0;
-
-        // Wait for toff
-        if( t >= toff2 )
-        {
-            if( n_movs % 2 == 0)
-            {
-                p0  = mjt2->getPosition( t_sub );
-                dp0 = mjt2->getVelocity( t_sub );
-            }
-            else
-            {
-                p0  = mjt3->getPosition( t_sub );
-                dp0 = mjt3->getVelocity( t_sub );
-            }
-
-            // Add oscillation
-            p0  += r_osc * Eigen::Vector3d( 0, cos( omega_osc * t ), sin( omega_osc * t ) );
-            dp0 += r_osc * omega_osc * Eigen::Vector3d( 0, -sin( omega_osc * t ), cos( omega_osc * t ) );
-
-            // Start of time
-            t_sub += ts;
-        }
-        else
-        {
-            p0  = p0_right;
-            dp0 = Eigen::Vector3d::Zero( );
-        }
-
-        // If movement end, reset
-        if( t_sub >= D2 + ti + 1.0 )
-        {
-            // reset
-            t_sub = 0;
-            n_movs++;
-        }
-
-        f << "Time: " << std::fixed << std::setw( 5 ) << t;
-        f << "   q values: " <<        q.transpose( ).format( fmt );
-        f << "   p values: " <<   p_curr.transpose( ).format( fmt );
-        f << "  p0 values: " <<       p0.transpose( ).format( fmt ) << std::endl;
-
-    }
-
-    // Module2 - Task-space Impedance Control
-    tau_imp2 = Jp.transpose( ) * ( Kp * ( p0 - p_curr ) + Bp * ( dp0 - dp_curr ) );
-    // tau_imp2 = Jp.transpose( ) * ( Kp * ( p0i - p_curr ) + Bp * ( - dp_curr ) );
-
-    // Module3 - Task-space Impedance Control, Orientation
-    // Get the Axis Angle of Rotation
     theta = acos( ( R_del.trace( ) - 1 )/2 );
 
-    if( theta >= 0.01 )
+    if( theta >= 0.001 )
     {
         w_axis_mat = ( R_del - R_del.transpose( ) ) / ( 2 * sin( theta ) );
     }
@@ -456,17 +352,90 @@ void MyLBRClient::command()
     w_axis( 0 ) = -w_axis_mat( 1, 2 );
     w_axis( 1 ) =  w_axis_mat( 0, 2 );
     w_axis( 2 ) = -w_axis_mat( 0, 1 );
-\
-    tau_imp3 = Jr.transpose( ) * ( kr * R_curr * w_axis * theta - br * Jr * dq );
+
+    // Get the current end-effector velocity
+    // Hybrid Jacobian Matrix (6x7) and its linear velocity part (3x7)
+    J  = myLBR->getHybridJacobian( q );
+
+    Jp = J.block( 0, 0, 3, myLBR->nq );
+    Jr = J.block( 3, 0, 3, myLBR->nq );
+
+    // Calculate the current end-effector's position
+    dp_curr = Jp * dq;
+
+    // Get the virtual trajectory
+    p01  = mjt1->getPosition( std::fmod( t, t_freq ) );
+    dp01 = mjt1->getVelocity( std::fmod( t, t_freq ) );
+    p02  = mjt2->getPosition( std::fmod( t, t_freq ) );
+    dp02 = mjt2->getVelocity( std::fmod( t, t_freq ) );
+    p03  = mjt3->getPosition( std::fmod( t, t_freq ) );
+    dp03 = mjt3->getVelocity( std::fmod( t, t_freq ) );
+    p04  = mjt4->getPosition( std::fmod( t, t_freq ) );
+    dp04 = mjt4->getVelocity( std::fmod( t, t_freq ) );
+    p05  = mjt5->getPosition( std::fmod( t, t_freq ) );
+    dp05 = mjt5->getVelocity( std::fmod( t, t_freq ) );
+    p06  = mjt6->getPosition( std::fmod( t, t_freq ) );
+    dp06 = mjt6->getVelocity( std::fmod( t, t_freq ) );
+    p07  = mjt7->getPosition( std::fmod( t, t_freq ) );
+    dp07 = mjt7->getVelocity( std::fmod( t, t_freq ) );
+    p08  = mjt8->getPosition( std::fmod( t, t_freq ) );
+    dp08 = mjt8->getVelocity( std::fmod( t, t_freq ) );
+
+    p0  =  p01 +  p02 +  p03 +  p04 +  p05 +  p06 +  p07 +  p08;
+    dp0 = dp01 + dp02 + dp03 + dp04 + dp05 + dp06 + dp07 + dp08;
+
+    // Calculate the tau
+    // For Maintaining the Robot Posture
+    //    tau_imp1 = Jp.transpose( ) * ( Kp * ( p0i - p_curr ) + Bp * ( - dp_curr ) );
+
+    if( t >= ( ti + 7 * ( D + toff ) ) && t <= ( ti + 7 * ( D + toff ) + 0.5*D ) )
+    {
+        if( Kq_gain <= 1 )
+        {
+            Kq_gain += 0.001;
+        }
+        else
+        {
+            Kq_gain = 1;
+        }
+    }
+
+    if( t >= ( ti + 7 * ( D + toff ) + 0.5*D ) && t <= ( ti + 8 * ( D + toff ) ) )
+    {
+        if( Kq_gain >= 0 )
+        {
+            Kq_gain -= 0.001;
+        }
+        else
+        {
+            Kq_gain = 0;
+        }
+    }
+
+    tau_imp1 = Jp.transpose( ) * ( Kp * ( p0 - p_curr ) + Bp * ( dp0 - dp_curr ) );
+    tau_imp2 = Kq_gain * Kq * ( q0_init - q ) + Bq * ( -dq );
+    tau_imp3 = Jr.transpose( ) * ( 50 * R_curr * w_axis * theta - 5 * Jr * dq );
 
     // Superposition of Mechanical Impedances
     tau_ctrl = tau_imp1 + tau_imp2 + tau_imp3;
 
-    end = std::chrono::steady_clock::now( );
+    // Saving not every time but every
 
-    std::cout << "Elapsed time for The Torque Calculation "
-              << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
-              << " us" << std::endl;
+    // If the counter reaches the threshold, print to console
+    if ( n_step == 5 )
+    {
+        f << "Time: " << std::fixed << std::setw( 5 ) << t;
+        f << "  q values: " << q.transpose( ).format( fmt );
+        f << " p0 values: " << p0.transpose( ).format( fmt ) << std::endl;
+        end = std::chrono::steady_clock::now( );
+
+        std::cout << "Elapsed time for The Torque Calculation "
+                  << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
+                  << " us" << std::endl;
+        n_step = 0;
+    }
+
+
 
     // ************************************************************ //
     // ********************* CONTROLLER ENDS ********************* //
@@ -503,19 +472,10 @@ void MyLBRClient::command()
         tau_pprev = tau_prev;
     }
 
+
     // Add the sample time to the current time
     t += ts;
     n_step++;
 
-    // Check button pressed
-    if ( robotState().getBooleanIOValue( "MediaFlange.UserButton" ) && !is_pressed )
-    {
-        is_pressed = true;
-
-        // Reset the time and number of steps
-        t = 0;
-        n_step = 0;
-    }
 
 }
-

@@ -170,7 +170,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     // The current end-effector position
     dp_curr = Eigen::VectorXd::Zero( 3 );
 
-    p0_start = p0i + Eigen::Vector3d( 0.0, -p0i( 1 ) - 0.10, 0.0 );
+    p0_start = p0i + Eigen::Vector3d( 0.0, 0.0, -0.1 );
 
 
     // Defining the Minimum Jerk Trajectory
@@ -183,13 +183,16 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     sgn = +1;
 
     del1 = Eigen::Vector3d( 0.0, 0.2,  0.2 );
+//    del2 = Eigen::Vector3d( 0.0, 0.0,  0.0 );
     del2 = Eigen::Vector3d( 0.0, 0.1, -0.1 );
+
+    p0_start += del1;
 
     // Going to starting position
     mjt0 = new MinimumJerkTrajectory( 3, p0i,    p0_start, D0, 3 );
 
     // Two Submovements are Defined
-    mjt1 = new MinimumJerkTrajectory( 3,                         p0_start,   p0_start + del1, D1, ti              );
+    mjt1 = new MinimumJerkTrajectory( 3,                         p0_start,          p0_start, D1, ti              );
     mjt2 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),              del2, D2, ti + D1 * alpha );
 
     // Set the tmax from these values
@@ -240,7 +243,8 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     printf( "The current script run sequence of submovements \n" );
 
     // Open a file
-    f.open( "tmp.txt" );
+    //    f.open( "tmp.txt" );
+    f.open( "/home/baxterplayground/Documents/kinematic_modularity/data/submovements/sub2.txt" );
     fmt = Eigen::IOFormat(5, 0, ", ", "\n", "[", "]");
 
     // Save the imporant parameters for the first line
@@ -469,10 +473,10 @@ void MyLBRClient::command()
                 goal1 = p0i + sgn * w_arr.cwiseProduct( generateRandom3DVector( ) - 0.5 * Eigen::Vector3d::Ones( ) );
                 goal2 = p0i - sgn * w_arr.cwiseProduct( generateRandom3DVector( ) - 0.5 * Eigen::Vector3d::Ones( ) );
 
-                std::cout << " Goal Location: "  << goal1.transpose( ).format( fmt ) << std::endl;
+                std::cout << " Goal Location: " << goal1.transpose( ).format( fmt ) << std::endl;
                 std::cout << "Final Location: " << goal2.transpose( ).format( fmt ) << std::endl;
-                std::cout << "p minimum: "  << pmin.transpose( ).format( fmt ) << std::endl;
-                std::cout << "p maximum: "  << pmax.transpose( ).format( fmt ) << std::endl;
+                std::cout << "p minimum: "      <<  pmin.transpose( ).format( fmt ) << std::endl;
+                std::cout << "p maximum: "      <<  pmax.transpose( ).format( fmt ) << std::endl;
 
                 // Clipping the value
                 clampVector( goal1, pmin, pmax );
@@ -491,18 +495,18 @@ void MyLBRClient::command()
 
           }
 
-
           // Write the q Values For regenerating the simulation
           f << "Time: " << std::fixed << std::setw( 5 ) << t;
           f << "   q values: " <<        q.transpose( ).format( fmt );
           f << "   p values: " <<   p_curr.transpose( ).format( fmt );
+          f << "  dp values: " <<  dp_curr.transpose( ).format( fmt );
           f << "  p0 values: " <<       p0.transpose( ).format( fmt );
           f << " dp0 values: " <<      dp0.transpose( ).format( fmt ) << std::endl;
 
     }
     \
     tau_imp2 = Jp.transpose( ) * ( Kp * ( p0 - p_curr ) + Bp * ( dp0 - dp_curr ) );
-//        tau_imp2 = Jp.transpose( ) * ( Kp * ( p0i - p_curr ) + Bp * ( - dp_curr ) );
+    //        tau_imp2 = Jp.transpose( ) * ( Kp * ( p0i - p_curr ) + Bp * ( - dp_curr ) );
 
     // Module3 - Task-space Impedance Control, Orientation
     // Get the Axis Angle of Rotation

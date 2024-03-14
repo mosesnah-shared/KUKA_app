@@ -122,13 +122,13 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude){
     /** Initialization */
 
     // THIS CONFIGURATION MUST BE THE SAME AS FOR THE JAVA APPLICATION!!
-    qInitial[0] =   0.00  * M_PI/180;
+    qInitial[0] = -20.00  * M_PI/180;
     qInitial[1] =  28.56  * M_PI/180;
     qInitial[2] =  17.54  * M_PI/180;
     qInitial[3] = -87.36  * M_PI/180;
     qInitial[4] =  -7.82  * M_PI/180;
     qInitial[5] =  75.56  * M_PI/180;
-    qInitial[6] =  90.00  * M_PI/180;
+    qInitial[6] =   0.00  * M_PI/180;
 
     // Use Explicit-cpp to create your robot
     myLBR = new iiwa14( 1, "Dwight");
@@ -176,7 +176,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude){
     Bq = 1.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
 
     // Open a file
-    f.open( "tmp.txt" );
+    f.open( "modular_input.txt" );
     fmt = Eigen::IOFormat(5, 0, ", ", "\n", "[", "]");
 
     // Initial print
@@ -187,8 +187,8 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude){
 
     // Read a csv file for position
     // Copy paste the link
-    pos_data = csv_to_mat( "/home/baxterplayground/Documents/DMP-MATLAB/data/example6/pos_data.csv" );
-    vel_data = csv_to_mat( "/home/baxterplayground/Documents/DMP-MATLAB/data/example6/vel_data.csv" );
+    pos_data = csv_to_mat( "/home/baxterplayground/Documents/DMP-MATLAB/data/example4/pos_data.csv" );
+    vel_data = csv_to_mat( "/home/baxterplayground/Documents/DMP-MATLAB/data/example4/vel_data.csv" );
 
     if ( pos_data.rows() == 0 || vel_data.rows( ) == 0 )
     {
@@ -223,7 +223,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude){
     N_curr_pos = 0;
 
     // Read a csv file for rotation.
-    R_data = csv_to_mat( "/home/baxterplayground/Documents/DMP-MATLAB/data/example6/orientation_del_data.csv" );
+    R_data = csv_to_mat( "/home/baxterplayground/Documents/DMP-MATLAB/data/example3/orientation_del_data.csv" );
     std::cout << "Matrix size: " << R_data.rows() << " rows x " << R_data.cols() << " columns" << std::endl;
 
     // Number of data points, orientation
@@ -232,6 +232,12 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude){
 
     std::cout << "Data Length for Position: " << N_imit_pos    << std::endl;
     std::cout << "Data Length for Orientation: " << N_imit_orient << std::endl;
+
+    freq1 = 0;
+    freq2 = 0;
+
+    std::cout << "freq1: " << freq1 << std::endl;
+    std::cout << "freq2: " << freq2 << std::endl;
 }
 
 
@@ -386,7 +392,7 @@ void MyLBRClient::command()
     {
         // Turn on/off
         is_run_imit_pos    = true;
-        is_run_imit_orient = false;
+        is_run_imit_orient = true;
 
         // Get the position of current
         H = myLBR->getForwardKinematics( q );
@@ -425,17 +431,19 @@ void MyLBRClient::command()
         p0  = p0i + pos_data.col( N_curr_pos );
         dp0 = vel_data.col( N_curr_pos );
 
-//        tau_imp1 = Jp.transpose( ) * ( Kp * ( p0i - p_curr ) + Bp * ( - dp_curr ) ) + Bq * ( -dq );
+        // tau_imp1 = Jp.transpose( ) * ( Kp * ( p0i - p_curr ) + Bp * ( - dp_curr ) ) + Bq * ( -dq );
         tau_imp1 = Jp.transpose( ) * ( Kp * ( p0 - p_curr ) + Bp * ( dp0 - dp_curr ) ) + Bq * ( -dq );
 
-        if( N_curr_pos < N_imit_pos - 1)
+        freq1++;
+
+        if( N_curr_pos < N_imit_pos - 1 && ( freq1 % 2 ) == 0)
         {
             N_curr_pos++;
         }
     }
     else
     {
-        tau_imp1 = Eigen::VectorXd::Zero( myLBR->nq );
+        tau_imp1 = Jp.transpose( ) * ( Kp * ( p0i - p_curr ) + Bp * ( - dp_curr ) ) + Bq * ( -dq );
     }
 
     if( is_run_imit_orient )
@@ -444,9 +452,9 @@ void MyLBRClient::command()
         // Maintain R_init Posture
 
         // Get the desired orientation from data
-//        R_des = R_init * R_data.block< 3, 3 >( 0, 3*( N_curr_orient ) );
+        R_des = R_init * R_data.block< 3, 3 >( 0, 3*( N_curr_orient ) );
 
-        R_des = R_init;
+//        R_des = R_init;
         R_del = R_curr.transpose( ) * R_des;
 
 
@@ -468,8 +476,9 @@ void MyLBRClient::command()
 
         tau_imp2 = Jr.transpose( ) * ( 50 * R_curr * w_axis * theta - 5 * Jr * dq ) + Bq * ( -dq );
 
+        freq2++;
 
-        if( N_curr_orient < N_imit_orient - 1)
+        if( N_curr_orient < N_imit_orient - 1 && ( freq2 % 2 ) == 0)
         {
             N_curr_orient++;
         }
@@ -494,7 +503,7 @@ void MyLBRClient::command()
         f << "Time: " << std::fixed << std::setw( 5 ) << currentTime;
         f << "  q values: "  << q.transpose( ).format( fmt );
         f << "  p values: "  << p_curr.transpose( ).format( fmt );
-//        f << "  p0 values: " << p0.transpose( ).format( fmt ) << std::endl;
+        f << "  p0 values: " << p0.transpose( ).format( fmt ) << std::endl;
     }
 
     tau_total = ( tau_current + tau_previous + tau_prev_prev ) / 3;

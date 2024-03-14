@@ -66,6 +66,56 @@ using namespace std;
 static double filterOutput[ 7 ][ NCoef+1 ]; // output samples. Static variables are initialised to 0 by default.
 static double  filterInput[ 7 ][ NCoef+1 ]; //  input samples. Static variables are initialised to 0 by default.
 
+// For reading a CSV file
+// [REF] https://stackoverflow.com/questions/34247057/how-to-read-csv-file-and-assign-to-eigen-matrix
+// [REF] Chat gpt also works well
+Eigen::MatrixXd csv_to_mat( const std::string & path )
+{
+    std::ifstream csvFile( path );
+    if (!csvFile.is_open())
+    {
+        std::cerr << "Error: Failed to open CSV file." << std::endl;
+        return Eigen::MatrixXd( );
+    }
+
+    // Read CSV data and convert to Eigen matrix
+    Eigen::MatrixXd eigenMatrix;
+    std::vector<std::vector<double>> data;
+
+    std::string line;
+    while ( std::getline( csvFile, line ) )
+    {
+        std::vector<double> row;
+        std::stringstream lineStream( line );
+        std::string cell;
+
+        while ( std::getline( lineStream, cell, ',' ) )
+        {
+            row.push_back( std::stod( cell ) );
+        }
+
+        data.push_back( row );
+    }
+
+    // Convert data to Eigen matrix
+    int rows = data.size( );
+    int cols = data[0].size( );
+    eigenMatrix.resize( rows, cols );
+
+    for (int i = 0; i < rows; ++i)
+    {
+        for (int j = 0; j < cols; ++j)
+        {
+            eigenMatrix( i, j ) = data[ i ][ j ];
+        }
+    }
+
+    csvFile.close();
+
+    return eigenMatrix;
+
+}
+
 
 //******************************************************************************
 MyLBRClient::MyLBRClient(double freqHz, double amplitude)
@@ -74,7 +124,6 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     /** Initialization */
     // !! WARNING !!
     // THESE JOINT POSITION VALUES MUST BE THE SAME WITH THE JAVA APPLICATION!!
-    // These values point forward, not downward
     q_init[0] =   10.03 * M_PI/180;
     q_init[1] =   54.30 * M_PI/180;
     q_init[2] =    0.54 * M_PI/180;
@@ -82,14 +131,6 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     q_init[4] =  -16.14 * M_PI/180;
     q_init[5] =  -45.99 * M_PI/180;
     q_init[6] =  102.20 * M_PI/180;
-
-    //    q_init[0] =   0.00 * M_PI/180;
-    //    q_init[1] =  28.56 * M_PI/180;
-    //    q_init[2] =  17.54 * M_PI/180;
-    //    q_init[3] = -87.36 * M_PI/180;
-    //    q_init[4] = -7.820 * M_PI/180;
-    //    q_init[5] = 75.560 * M_PI/180;
-    //    q_init[6] = -9.010 * M_PI/180;
 
     // Use Explicit-cpp to create your robot
     myLBR = new iiwa14( 1, "Dwight" );
@@ -120,9 +161,6 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     ts     = 0;     // The  sample Time, i.e., dt,
     n_step = 0;     // The number of time steps, integer
 
-    // Number of trials of the movement
-    n_trials = 0;
-    n_movs   = 0;
 
     // Once Initialized, get the initial end-effector position
     // Forward Kinematics and the current position
@@ -130,34 +168,24 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     p_curr = H.block< 3, 1 >( 0, 3 );
     R_curr = H.block< 3, 3 >( 0, 0 );
 
+    tmp_freq = 0;
+
     // These values will be the initial values
     p0i = p_curr;
     R0i = R_curr;
 
-    // delta offset
-    double tmp_del = 0.15;
+    // The first submovement to move to set position
 
-    // Set the right and left position, which is simply defined by delta
-    p0_right = p0i + Eigen::Vector3d( -0.1, -p0i( 1 ) + 0.17, 0.20 );
-//    p0_left  = p0i + Eigen::Vector3d( -0.1, -p0i( 1 ) + 0.35, 0.20 );
+    p0_start = p0i + Eigen::Vector3d( -0.1, -0.4, -0.1 );
+
+    mjt1 = new MinimumJerkTrajectory( 3,  p0i,  p0_start, 2, 4  );
 
     // The current end-effector position
     dp_curr = Eigen::VectorXd::Zero( 3 );
 
-    // The movement parameters
-    D1 = 3.0;
-    D2 = 2.0;
-    ti = 2.0;
-
     // Time for submovement
     t_sub = 0;
-
-    // The first submovement to move to set position
-    mjt1 = new MinimumJerkTrajectory( 3,  p0i,  p0_right, D1, ti  );
-
-    // The two submovements used for the motion planning
-    mjt2 = new MinimumJerkTrajectory( 3,  p0_right,  p0_right , D2, ti  );
-    mjt3 = new MinimumJerkTrajectory( 3,   p0_right,  p0_right, D2, ti  );
+    t_rot_tmp = 0;
 
     // The taus (or torques) for the command
     tau_ctrl   = Eigen::VectorXd::Zero( myLBR->nq );    // The torque from the controller design,
@@ -180,16 +208,16 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     Jr = Eigen::MatrixXd::Zero( 3, myLBR->nq );
 
     // The Translational stiffness/damping matrices
-    Kp = 800 * Eigen::MatrixXd::Identity( 3, 3 );
-    Bp =  80 * Eigen::MatrixXd::Identity( 3, 3 );
-    Bq = 2.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
+    Kp = 400 * Eigen::MatrixXd::Identity( 3, 3 );
+    Bp =  40 * Eigen::MatrixXd::Identity( 3, 3 );
+    Bq = 1.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
 
     kr = 50;
     br = 5;
 
     // Parameters of the oscillatory movement
-    r_osc     = 0.03;
-    omega_osc = 3 * M_PI;
+    r_osc     = 0.02;
+    omega_osc = 2 * M_PI;
 
     // Initial print
     printf( "Exp[licit](c)-cpp-FRI, https://explicit-robotics.github.io \n\n" );
@@ -198,18 +226,22 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     printf( "' initialised. Ready to rumble! \n" );
     printf( "The current script runs a superposition of submovement + oscillation \n" );
 
-
     // Open a file
-    f.open( "/home/baxterplayground/Documents/kinematic_modularity/data/sub_and_osc/osc.txt" );
+    f.open( "/home/baxterplayground/Documents/kinematic_modularity/data/contraction_results/data1.txt" );
     fmt = Eigen::IOFormat(5, 0, ", ", "\n", "[", "]");
 
-    // Save the imporant parameters for the first line
-    f << " r: " << r_osc << " omega " << omega_osc;
-    f << " p0i: " << p0i.transpose( ).format( fmt );
-    f << " p0_right: " << p0_right.transpose( ).format( fmt );
-    f << " p0_left: " << p0_left.transpose( ).format( fmt ) << std::endl;
+    // Read the Data
+    pos_data = csv_to_mat( "/home/baxterplayground/Documents/DMP-MATLAB/data/example7/pos_data.csv" );
+    std::cout << "Matrix size: " << pos_data.rows() << " rows x " << pos_data.cols() << " columns" << std::endl;
 
-    is_pressed = false;
+    // Get thenumber of data
+    N_imit_pos = pos_data.cols( );
+    N_curr_pos = 0;
+    tmp_freq   = 0;
+
+
+    // Initialization of flags
+    is_pressed       = false;
 
 }
 
@@ -361,7 +393,6 @@ void MyLBRClient::command()
 
     start = std::chrono::steady_clock::now( );
 
-
     // Get the current H matrices
     H = myLBR->getForwardKinematics( q );
     p_curr = H.block< 3, 1 >( 0, 3 );
@@ -373,72 +404,44 @@ void MyLBRClient::command()
     Jp = J.block( 0, 0, 3, myLBR->nq );     // linear  velocity part Jp (3x7)
     Jr = J.block( 3, 0, 3, myLBR->nq );     // angular velocity part Jp (3x7)
 
-    // The difference between the two rotation matrices
-    R_del = R_curr.transpose( ) * R0i;
-
     // Get the current end-effector velocity.
     dp_curr = Jp * dq;
 
     // Module1 - Joint-space Impedance Control
     tau_imp1 = Bq * ( -dq );
 
-    // p0 setup.
-    // This part is the key.
     if( !is_pressed ) // If not pressed
     {
         // Simply move to the p_right position
         p0  = mjt1->getPosition( t );
-        dp0 = mjt1->getVelocity( t );
-    }
+
+    } // If pressed
     else
     {
-        double toff2 = 4.0;
+        std::cout << "INSIDE HERE!" << std::endl;
+        p0  = p0_start + pos_data.col( N_curr_pos );
 
-        // Wait for toff
-        if( t >= toff2 )
+        tmp_freq++;
+
+        if( N_curr_pos < N_imit_pos - 1 && ( tmp_freq % 1 ) == 0 )
         {
-            if( n_movs % 2 == 0)
-            {
-                p0  = mjt2->getPosition( t_sub );
-                dp0 = mjt2->getVelocity( t_sub );
-            }
-            else
-            {
-                p0  = mjt3->getPosition( t_sub );
-                dp0 = mjt3->getVelocity( t_sub );
-            }
-
-            // Add oscillation
-            p0  += r_osc * Eigen::Vector3d( 0, cos( omega_osc * t ), sin( omega_osc * t ) );
-            dp0 += r_osc * omega_osc * Eigen::Vector3d( 0, -sin( omega_osc * t ), cos( omega_osc * t ) );
-
-            // Start of time
-            t_sub += ts;
-        }
-        else
-        {
-            p0  = p0_right;
-            dp0 = Eigen::Vector3d::Zero( );
+            N_curr_pos++;
         }
 
-        // If movement end, reset
-        if( t_sub >= D2 + ti + 1.0 )
-        {
-            // reset
-            t_sub = 0;
-            n_movs++;
-        }
-
+        // Write the q Values For regenerating the simulation
         f << "Time: " << std::fixed << std::setw( 5 ) << t;
-        f << "   q values: " <<        q.transpose( ).format( fmt );
-        f << "   p values: " <<   p_curr.transpose( ).format( fmt );
-        f << "  p0 values: " <<       p0.transpose( ).format( fmt ) << std::endl;
+        f << "   q values: " <<   q.transpose( ).format( fmt );
+        f << "   p values: " <<  p_curr.transpose( ).format( fmt );
+        f << "  p0 values: " <<  p0.transpose( ).format( fmt ) << std::endl;
 
     }
 
     // Module2 - Task-space Impedance Control
-    tau_imp2 = Jp.transpose( ) * ( Kp * ( p0 - p_curr ) + Bp * ( dp0 - dp_curr ) );
-    // tau_imp2 = Jp.transpose( ) * ( Kp * ( p0i - p_curr ) + Bp * ( - dp_curr ) );
+    tau_imp2 = Jp.transpose( ) * ( Kp * ( p0 - p_curr ) + Bp * ( - dp_curr ) );
+
+
+    // The difference between the two rotation matrices
+    R_del = R_curr.transpose( ) * R0i;
 
     // Module3 - Task-space Impedance Control, Orientation
     // Get the Axis Angle of Rotation
@@ -477,7 +480,7 @@ void MyLBRClient::command()
 
     for ( int i=0; i<7; i++ )
     {
-          q_command[ i ] = filterOutput[ i ][ 0 ];
+        q_command[ i ] = filterOutput[ i ][ 0 ];
         tau_command[ i ] = tau_total[ i ];
     }
 
@@ -513,9 +516,16 @@ void MyLBRClient::command()
         is_pressed = true;
 
         // Reset the time and number of steps
-        t = 0;
-        n_step = 0;
+        //        t = 0;
+        //        n_step = 0;
+
+        // Turn on imitation learning
+        // is_run_imit_pos    = true;
+        std::cout << "Button Pressed!" << std::endl;
+
     }
+
+
 
 }
 

@@ -198,11 +198,10 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     delz = Eigen::Vector3d( 0, 0, -0.36 );
     p0_write = p0_start + delz;
 
-
     // The first submovement to move to set position
     //                                                    D, ti
     mjt1 = new MinimumJerkTrajectory( 3,  p0i,  p0_start, 4, 4  );
-    mjt2 = new MinimumJerkTrajectory( 3,  p0_start,  p0_write, 4, 2  );
+    mjt2 = new MinimumJerkTrajectory( 3,  p0_start,  p0_write, 6, 2  );
 
     // The current end-effector position
     dp_curr = Eigen::VectorXd::Zero( 3 );
@@ -234,7 +233,6 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
 
     // The Translational stiffness/damping matrices
     Kp = 400 * Eigen::MatrixXd::Identity( 3, 3 );
-    Kp( 2, 2 ) = 200;
     Bp =  40 * Eigen::MatrixXd::Identity( 3, 3 );
     Bq = 1.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
 
@@ -253,7 +251,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     printf( "The current script runs a superposition of submovement + oscillation \n" );
 
     // Open a file
-    f.open( "tmp.txt" );
+    f.open( "/home/baxterplayground/Documents/kinematic_modularity/data/imitation_learning_results/data1.txt" );
     fmt = Eigen::IOFormat(5, 0, ", ", "\n", "[", "]");
 
     // Read the Data
@@ -496,9 +494,6 @@ void MyLBRClient::command()
                 p0  = mjt2->getPosition( t );
                 dp0 = mjt2->getVelocity( t );
 
-                //
-                robotState.
-
             }
             else
             {
@@ -523,6 +518,12 @@ void MyLBRClient::command()
                     t = 0;
                     n_step = 0;
                 }
+
+
+                // Write the q Values For regenerating the simulation
+                f << "Time: " << std::fixed << std::setw( 5 ) << t;
+                f << "   q values: " <<   q.transpose( ).format( fmt );
+                f << "  p0 values: " <<  p0.transpose( ).format( fmt ) << std::endl;
             }
         }
 
@@ -542,7 +543,6 @@ void MyLBRClient::command()
 
                 Kp( 0, 0 ) = 800;
                 Kp( 1, 1 ) = 800;
-                Kp( 2, 2 ) = 500;
             }
 
         }
@@ -550,7 +550,7 @@ void MyLBRClient::command()
 
         if( is_erase )
         {
-            if( t >= 1 )
+            if( t >= 0 )
             {
                 p0  = p0_write + pos_data.col( N_curr_pos );
                 p0( 2 ) = p0_write( 2 );
@@ -558,7 +558,7 @@ void MyLBRClient::command()
 
                 tmp_freq++;
 
-                if( N_curr_pos >= 1 && ( tmp_freq % 3 ) == 0 )
+                if( N_curr_pos >= 1 && ( tmp_freq % 4 ) == 0 )
                 {
                     N_curr_pos--;
                 }
@@ -569,6 +569,11 @@ void MyLBRClient::command()
                 dp0 += r_osc * omega_osc * Eigen::Vector3d( -sin( omega_osc * t ), cos( omega_osc * t ), 0  );
 
             }
+
+            // Write the q Values For regenerating the simulation
+            f << "Time: " << std::fixed << std::setw( 5 ) << t;
+            f << "   q values: " <<   q.transpose( ).format( fmt );
+            f << "  p0 values: " <<  p0.transpose( ).format( fmt ) << std::endl;
 
         }
 
@@ -604,12 +609,6 @@ void MyLBRClient::command()
 
     // Superposition of Mechanical Impedances
     tau_ctrl = tau_imp1 + tau_imp2 + tau_imp3;
-
-    // Write the q Values For regenerating the simulation
-    f << "Time: " << std::fixed << std::setw( 5 ) << t;
-    f << "   q values: " <<   q.transpose( ).format( fmt );
-    f << "  p0 values: " <<  p0.transpose( ).format( fmt );
-    f << " dp0 values: " << dp0.transpose( ).format( fmt ) << std::endl;
 
     end = std::chrono::steady_clock::now( );
 
