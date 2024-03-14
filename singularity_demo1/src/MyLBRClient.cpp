@@ -123,7 +123,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     // Create the Minimum-jerk trajectory
     D   = 3.5;
     ti   = 1.0;
-    toff = 0.5;
+    toff = 0.0;
 
     p0i = p_curr;
 
