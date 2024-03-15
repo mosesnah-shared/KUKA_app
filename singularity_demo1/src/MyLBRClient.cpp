@@ -388,7 +388,7 @@ void MyLBRClient::command()
     // For Maintaining the Robot Posture
     //    tau_imp1 = Jp.transpose( ) * ( Kp * ( p0i - p_curr ) + Bp * ( - dp_curr ) );
 
-    if( t >= ( ti + 7 * ( D + toff ) ) && t <= ( ti + 7 * ( D + toff ) + 0.5*D ) )
+    if( std::fmod( t, t_freq )  >= ( ti + 7 * ( D + toff ) ) && std::fmod( t, t_freq )  <= ( ti + 7 * ( D + toff ) + 0.5*D ) )
     {
         if( Kq_gain <= 1 )
         {
@@ -400,7 +400,7 @@ void MyLBRClient::command()
         }
     }
 
-    if( t >= ( ti + 7 * ( D + toff ) + 0.5*D ) && t <= ( ti + 8 * ( D + toff ) ) )
+    if( std::fmod( t, t_freq )  >= ( ti + 7 * ( D + toff ) + 0.5*D ) && std::fmod( t, t_freq ) <= ( ti + 8 * ( D + toff ) ) )
     {
         if( Kq_gain >= 0 )
         {

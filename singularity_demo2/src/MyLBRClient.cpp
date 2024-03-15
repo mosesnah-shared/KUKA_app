@@ -80,6 +80,14 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     q_init[5] = -37.73 * M_PI/180;
     q_init[6] =  0.000 * M_PI/180;
 
+    q_init2[0] =   3.59 * M_PI/180;
+    q_init2[1] =  96.19 * M_PI/180;
+    q_init2[2] = -15.99 * M_PI/180;
+    q_init2[3] =  65.70 * M_PI/180;
+    q_init2[4] =  11.62 * M_PI/180;
+    q_init2[5] =  30.18 * M_PI/180;
+    q_init2[6] =  13.68 * M_PI/180;
+
     // Use Explicit-cpp to create your robot
     myLBR = new iiwa14( 1, "Dwight" );
 
@@ -90,7 +98,9 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     // These two variables are used as "Eigen" objects rather than a double array
     q  = Eigen::VectorXd::Zero( myLBR->nq );
     dq = Eigen::VectorXd::Zero( myLBR->nq );
-    q0_init = Eigen::VectorXd::Zero( myLBR->nq );
+    q0_init  = Eigen::VectorXd::Zero( myLBR->nq );
+    q0_curr  = Eigen::VectorXd::Zero( myLBR->nq );
+    q0_init2 = Eigen::VectorXd::Zero( myLBR->nq );
 
     // Time variables for control loop
     t      = 0;     // The current Time
@@ -102,6 +112,8 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     {
         q( i ) = q_init[ i ];
         q0_init( i ) = q_init[ i ];
+        q0_init2( i ) = q_init2[ i ];
+
         q_curr[ i ] = q_init[ i ];
          q_old[ i ] = q_init[ i ];
 
@@ -121,9 +133,9 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     dp_curr = Eigen::VectorXd::Zero( 3 );
 
     // Create the Minimum-jerk trajectory
-    D   = 3.3;
+    D   = 3.0;
     ti   = 1.0;
-    toff = -0.8;
+    toff = 0.0;
 
     p0i = p_curr;
 
@@ -131,12 +143,12 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     dely = Eigen::Vector3d( 0.0, 0.4, 0.0 );
     delz = Eigen::Vector3d( 0.0, 0.0, 0.4 );
 
-    mjt1  = new MinimumJerkTrajectory( 3,                              p0i,    p0i + delx, D, ti                );    // Forward
-    mjt2  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),        - delx, D, ti + 1 * ( D + toff ) - 0.3 );    // Backward
-    mjt3  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),          delx, D, ti + 2 * ( D + toff ) );    // Forward
-    mjt4  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),        - delx, D, ti + 3 * ( D + toff ) - 0.3 );    // Backward
+    mjt1  = new MinimumJerkTrajectory( 3,                              p0i,      p0i+delx, D, ti                );              // Forward
+    mjt2  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),     -0.7*delx, D, ti + 1 * ( D + toff ) - 0.3 );    // Backward
+    mjt3  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),      0.7*delx, D, ti + 2 * ( D + toff ) );          // Forward
+    mjt4  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),     -1.0*delx, D, ti + 3 * ( D + toff ) - 0.3 );    // Backward
 
-    t_freq = ti + 4 * ( D + toff ) - 0.3;
+    t_freq = ti + 4 * ( D + toff ) - 0.6 + ti;
 
     // The taus (or torques) for the command
     tau_ctrl   = Eigen::VectorXd::Zero( myLBR->nq );    // The torque from the controller design,
@@ -164,6 +176,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     Kq = 6.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
     Bq = 1.5 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
 
+
     // Initial print
     printf( "Exp[licit](c)-cpp-FRI, https://explicit-robotics.github.io \n\n" );
     printf( "Robot '" );
@@ -173,8 +186,8 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
 
     Kq_gain = 0;
 
-        // Open a file
-    f.open( "singularity_test1.txt" );
+    // Open a file
+    f.open( "singularity_test3.txt" );
     fmt = Eigen::IOFormat(5, 0, ", ", "\n", "[", "]");
 
 
@@ -376,56 +389,63 @@ void MyLBRClient::command()
     // For Maintaining the Robot Posture
     //    tau_imp1 = Jp.transpose( ) * ( Kp * ( p0i - p_curr ) + Bp * ( - dp_curr ) );
 
-    if( t >= ( ti + 1 * ( D + toff ) ) && t <= ( ti + 1 * ( D + toff ) + 0.5*D ) )
+    if( std::fmod( t, t_freq ) >= ( ti + 1 * ( D + toff ) ) && std::fmod( t, t_freq ) <= ( ti + 1 * ( D + toff ) + 0.5*D ) )
     {
         if( Kq_gain <= 1 )
         {
-            Kq_gain += 0.001;
+            Kq_gain += 0.002;
         }
         else
         {
             Kq_gain = 1;
         }
+        q0_curr = q0_init2;
+        Bq( 3,3 ) = 10.0;
     }
-
-    if( t >= ( ti + 1 * ( D + toff ) + 0.5*D ) && t <= ( ti + 2 * ( D + toff ) ) )
+    else if( std::fmod( t, t_freq ) >= ( ti + 1 * ( D + toff ) + 0.5*D ) && std::fmod( t, t_freq ) <= ( ti + 1 * ( D + toff ) + D ) )
     {
         if( Kq_gain >= 0 )
         {
-            Kq_gain -= 0.001;
+            Kq_gain -= 0.002;
         }
         else
         {
             Kq_gain = 0;
         }
+        q0_curr = q0_init2;
+        Bq( 3,3 ) = 10.0;
     }
-
-    if( t >= ( ti + 3 * ( D + toff ) ) && t <= ( ti + 3 * ( D + toff ) + 0.5*D ) )
+    else if( std::fmod( t, t_freq ) >= ( ti + 3 * ( D + toff ) ) && std::fmod( t, t_freq ) <= ( ti + 3 * ( D + toff ) + 0.5*D ) )
     {
+
         if( Kq_gain <= 1 )
         {
-            Kq_gain += 0.001;
+            Kq_gain += 0.002;
         }
         else
         {
             Kq_gain = 1;
         }
+        q0_curr = q0_init;
+        Bq( 3,3 ) = 10.0;
     }
-
-    if( t >= ( ti + 3 * ( D + toff ) + 0.5*D ) && t <= ( ti + 4 * ( D + toff ) ) )
+    else if( std::fmod( t, t_freq ) >= ( ti + 3 * ( D + toff ) + 0.5*D ) && std::fmod( t, t_freq ) <= ( ti + 3 * ( D + toff ) + D ) )
     {
         if( Kq_gain >= 0 )
         {
-            Kq_gain -= 0.001;
+            Kq_gain -= 0.002;
         }
         else
         {
             Kq_gain = 0;
         }
+        q0_curr = q0_init;
+        Bq( 3,3 ) = 10.0;
     }
+
 
     tau_imp1 = Jp.transpose( ) * ( Kp * ( p0 - p_curr ) + Bp * ( dp0 - dp_curr ) );
-    tau_imp2 = Kq_gain * Kq * ( q0_init - q ) + Bq * ( -dq );
+    tau_imp2 = Kq_gain * Kq * ( q0_curr - q ) + Bq * ( -dq );
     tau_imp3 = Jr.transpose( ) * ( 50 * R_curr * w_axis * theta - 5 * Jr * dq );
 
     // Superposition of Mechanical Impedances
