@@ -131,9 +131,9 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     delx2 = Eigen::Vector3d(  0.4, 0.0, -0.2 );
 
     mjt1  = new MinimumJerkTrajectory( 3,                              p0i,     p0i + delx1, D,                    ti );    // Forward
-    mjt2  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),     -0.5* delx1, D, ti + 1 * ( D + toff ) );    // Backward
-    mjt3  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),      0.5* delx2, D, ti + 2 * ( D + toff ) );    // Forward
-    mjt4  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),     -0.5* delx2, D, ti + 3 * ( D + toff ) );    // Backward
+    mjt2  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),     -0.7* delx1, D, ti + 1 * ( D + toff ) );    // Backward
+    mjt3  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),      0.7* delx2, D, ti + 2 * ( D + toff ) );    // Forward
+    mjt4  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),     -0.7* delx2, D, ti + 3 * ( D + toff ) );    // Backward
 
     // The taus (or torques) for the command
     tau_ctrl   = Eigen::VectorXd::Zero( myLBR->nq );    // The torque from the controller design,
