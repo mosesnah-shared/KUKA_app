@@ -127,13 +127,12 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
 
     p0i = p_curr;
 
-    delx1 = Eigen::Vector3d(  0.4, 0.0,  0.1 );
-    delx2 = Eigen::Vector3d(  0.4, 0.0, -0.2 );
+    delx1 = Eigen::Vector3d(  0.4, 0.1, -0.2 );
 
     mjt1  = new MinimumJerkTrajectory( 3,                              p0i,     p0i + delx1, D,                    ti );    // Forward
-    mjt2  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),     -0.7* delx1, D, ti + 1 * ( D + toff ) );    // Backward
-    mjt3  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),      0.7* delx2, D, ti + 2 * ( D + toff ) );    // Forward
-    mjt4  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),     -0.7* delx2, D, ti + 3 * ( D + toff ) );    // Backward
+    mjt2  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),     -0.8* delx1, D, ti + 1 * ( D + toff ) );    // Backward
+    mjt3  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),      0.8* delx1, D, ti + 2 * ( D + toff ) );    // Forward
+    mjt4  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),     -0.8* delx1, D, ti + 3 * ( D + toff ) );    // Backward
 
     // The taus (or torques) for the command
     tau_ctrl   = Eigen::VectorXd::Zero( myLBR->nq );    // The torque from the controller design,
@@ -155,8 +154,8 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     Jr = Eigen::MatrixXd::Zero( 3, myLBR->nq );
 
     // The stiffness/damping matrices
-    Kp = 800 * Eigen::MatrixXd::Identity( 3, 3 );
-    Bp =  80 * Eigen::MatrixXd::Identity( 3, 3 );
+    Kp = 400 * Eigen::MatrixXd::Identity( 3, 3 );
+    Bp =  40 * Eigen::MatrixXd::Identity( 3, 3 );
     Bq = 1.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
 
     // Initial print
