@@ -4,8 +4,8 @@ This repository contains personal C++ applications using KUKA LBR iiwa14.
 The application uses [Exp[licit]-cpp](https://github.com/explicit-robotics/Explicit-cpp) and [Exp[licit]-FRI](https://github.com/explicit-robotics/Explicit-FRI). Details can be checked in the [**explicit-robotics** Github repository](https://github.com/explicit-robotics).
 
 The code includes applications for:
-1. [Drawing and erasing task](./draw_and_erase/). [[Youtube Video]](https://youtu.be/kRedbTY6T2U)
-2. [Modular Imitation Learning](./draw_and_erase/). [[Youtube Video]](https://youtu.be/wZWKNFh24cg)
+1. [Drawing and erasing task](./draw_and_erase/). [[Youtube Video]](https://youtu.be/zc1vlX_XmR8)
+2. [Modular Imitation Learning](./draw_and_erase/). [[Youtube Video]](https://youtu.be/sARKQHFkkdA)
 
 The data used for these applications are from [DMP-MATLAB Github repository](https://github.com/mosesnah-shared/DMP-MATLAB). Feel free to reach out to me for questions and details to generate the data.
 
