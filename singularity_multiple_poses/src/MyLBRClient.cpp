@@ -65,6 +65,89 @@ static double filterOutput[ 7 ][ NCoef+1 ]; // output samples. Static variables 
 static double  filterInput[ 7 ][ NCoef+1 ]; //  input samples. Static variables are initialised to 0 by default.
 
 
+Eigen::Matrix3d R3_to_so3(const Eigen::Vector3d& v) {
+    Eigen::Matrix3d skewSym;
+    skewSym <<  0,      -v(2),  v(1),
+                v(2),   0,     -v(0),
+                -v(1),   v(0),  0;
+    return skewSym;
+}
+
+Eigen::Matrix3d R3_to_SO3(const Eigen::Vector3d& axis_angle) {
+    // Normalize the axis of rotation
+    Eigen::Vector3d axis = axis_angle.normalized();
+
+    // Compute the angle of rotation
+    double angle = axis_angle.norm();
+
+    // Compute the skew-symmetric matrix
+    Eigen::Matrix3d skew_sym = R3_to_so3(axis);
+
+    // Compute the rotation matrix using Rodriguez formula
+    Eigen::Matrix3d rotation_matrix = Eigen::Matrix3d::Identity()
+                                      + std::sin(angle) * skew_sym
+                                      + (1 - std::cos(angle)) * (skew_sym * skew_sym);
+
+    // Perform Gram-Schmidt orthogonalization to ensure orthogonality
+    //    Eigen::HouseholderQR<Eigen::Matrix3d> qr(rotation_matrix);
+    //    rotation_matrix = qr.householderQ();
+
+    return rotation_matrix;
+}
+
+
+
+Eigen::Vector3d so3_to_R3(const Eigen::Matrix3d& skewSym) {
+    Eigen::Vector3d v;
+    v << skewSym(2, 1), skewSym(0, 2), skewSym(1, 0);
+    return v;
+}
+
+Eigen::Matrix3d SO3_to_so3(const Eigen::Matrix3d& R_del ) {
+    Eigen::Matrix3d w_axis_mat;
+
+
+    if (std::abs(R_del.trace() + 1) <= 1e-7) {
+        if (std::abs(R_del(2, 2) + 1) >= 1e-7) {
+            Eigen::Vector3d tmp = Eigen::Vector3d::Zero();
+            tmp(0) = 1. / sqrt(2 * (1 + R_del(2, 2))) * R_del(0, 2);
+            tmp(1) = 1. / sqrt(2 * (1 + R_del(2, 2))) * R_del(1, 2);
+            tmp(2) = 1. / sqrt(2 * (1 + R_del(2, 2))) * (1 + R_del(2, 2));
+            w_axis_mat = R3_to_so3(tmp);
+        }
+        else if (std::abs(R_del(1, 1) + 1) >= 1e-7) {
+            Eigen::Vector3d tmp = Eigen::Vector3d::Zero();
+            tmp(0) = 1. / sqrt(2 * (1 + R_del(1, 1))) * R_del(0, 1);
+            tmp(1) = 1. / sqrt(2 * (1 + R_del(1, 1))) * (1 + R_del(1, 1));
+            tmp(2) = 1. / sqrt(2 * (1 + R_del(1, 1))) * R_del(2, 1);
+            w_axis_mat = R3_to_so3(tmp);
+        }
+        else {
+            Eigen::Vector3d tmp = Eigen::Vector3d::Zero();
+            tmp(0) = 1. / sqrt(2 * (1 + R_del(0, 0))) * (1 + R_del(0, 0));
+            tmp(1) = 1. / sqrt(2 * (1 + R_del(0, 0))) * R_del(1, 0);
+            tmp(2) = 1. / sqrt(2 * (1 + R_del(0, 0))) * R_del(2, 0);
+            w_axis_mat = R3_to_so3(tmp);
+        }
+    }
+    else {
+        // Calculate theta
+        Eigen::Matrix3d diff = R_del - Eigen::Matrix3d::Identity();
+
+        if ( std::abs( diff.norm( ) ) < 1e-6 )
+        {
+            w_axis_mat = Eigen::Matrix3d::Zero(3, 3);
+        }
+        else
+        {
+            double theta = std::acos( 0.5* ( R_del.trace( ) - 1 ) );
+            w_axis_mat = theta*(R_del - R_del.transpose()) / (2 * sin(theta));
+        }
+    }
+
+    return w_axis_mat;
+}
+
 //******************************************************************************
 MyLBRClient::MyLBRClient(double freqHz, double amplitude)
 {
@@ -90,7 +173,9 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     // These two variables are used as "Eigen" objects rather than a double array
     q  = Eigen::VectorXd::Zero( myLBR->nq );
     dq = Eigen::VectorXd::Zero( myLBR->nq );
-    q0_init = Eigen::VectorXd::Zero( myLBR->nq );
+    q0_init  = Eigen::VectorXd::Zero( myLBR->nq );
+    q0_curr  = Eigen::VectorXd::Zero( myLBR->nq );
+    q0_init2 = Eigen::VectorXd::Zero( myLBR->nq );
 
     // Time variables for control loop
     t      = 0;     // The current Time
@@ -114,33 +199,68 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     // Forward Kinematics and the current position
     H = myLBR->getForwardKinematics( q );
     p_curr  = H.block< 3, 1 >( 0, 3 );
-    R_des   = H.block< 3, 3 >( 0, 0 );
+    R_init  = H.block< 3, 3 >( 0, 0 );
 
-    R_curr  = R_des;
-    R_del   = R_curr.transpose( ) * R_des;
+    R_curr  = R_init;
     dp_curr = Eigen::VectorXd::Zero( 3 );
 
+    // Set the Rdesired postures
+
+    R_des1 <<  1, 0,  0,
+               0, 1,  0,
+               0, 0,  1;
+
+    R_des2 << -0.9822, -0.1475, -0.1165,
+              -0.1599,  0.9815,  0.1053,
+               0.0988,  0.1220, -0.9876;
+
     // Create the Minimum-jerk trajectory
-    D   = 3.5;
+    D1   = 3.0;
+    D2   = 3.0;
+    D3   = 5.0;
     ti   = 1.0;
-    toff = 0.0;
+    toff = 0.5;
 
     p0i = p_curr;
 
     delx = Eigen::Vector3d( 0.4, 0.0, 0.0 );
     dely = Eigen::Vector3d( 0.0, 0.4, 0.0 );
-    delz = Eigen::Vector3d( 0.0, 0.0, 0.4 );
+    delz = Eigen::Vector3d( 0.0, 0.0, 0.3 );
 
-    mjt1  = new MinimumJerkTrajectory( 3,                              p0i,    p0i + delx, D,                    ti );    // Forward
-    mjt2  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),        - dely, D, ti + 1 * ( D + toff ) );    // Moving Right
-    mjt3  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),          delz, D, ti + 2 * ( D + toff ) );    // Moving Up
-    mjt4  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),      2 * dely, D, ti + 3 * ( D + toff ) );    // Moving Left
-    mjt5  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),     -2 * delz, D, ti + 4 * ( D + toff ) );    // Moving Down
-    mjt6  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),     -1 * dely, D, ti + 5 * ( D + toff ) );    // Moving Right
-    mjt7  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),      1 * delz, D, ti + 6 * ( D + toff ) );    // Moving Up
-    mjt8  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),     -1 * delx, D, ti + 7 * ( D + toff ) );    // Moving Back to the Initial
+    // mjt for position
+    t1i = ti;
+    t1f = ti + D1;
+    t2i = t1f + 2*toff;
+    t2f = t2i + D1;
+    t3i = t2f + 2*toff;
+    t3f = t3i + D2;
+    t4i = t3f + 2*toff;
+    t4f = t4i + D2;
+    t5i = t4f + 2*toff;
+    t5f = t5i + D2;
+    t6i = t5f + 2*toff;
+    t6f = t6i + D2;
 
-    t_freq = ti + 8 * ( D + toff );
+
+    mjt_p1  = new MinimumJerkTrajectory( 3,                              p0i,    p0i + delx, D1, t1i );
+    mjt_p2  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),        - delx, D1, t2i );
+    mjt_p3  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),   delx + delz, D2, t3i );
+    mjt_p4  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), - delx - delz, D2, t4i );
+    mjt_p5  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  0.5*delx + 1.5*delz, D2, t5i );
+    mjt_p6  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), -1.0*delx + 1.5*delz, D2, t6i );
+
+    // mjt for orientation
+    // For the first one, from
+    Eigen::Vector3d wdel1 = so3_to_R3( SO3_to_so3( R_init.transpose( ) * R_des2 ) );
+    Eigen::Vector3d wdel2 = so3_to_R3( SO3_to_so3( R_init.transpose( ) * R_des1 ) );
+
+    mjt_w1  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  wdel1, D1, t1i );
+    mjt_w2  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), -wdel1, D1, t2i );
+    mjt_w3  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  wdel2, D2, t3i );
+    mjt_w4  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), -wdel2, D2, t4i );
+    mjt_w5  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  wdel2, D2, t5i );
+    mjt_w6  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), Eigen::Vector3d( 0.0, 0.0, 0.0 ), D2, t6i );
+
 
     // The taus (or torques) for the command
     tau_ctrl   = Eigen::VectorXd::Zero( myLBR->nq );    // The torque from the controller design,
@@ -165,8 +285,11 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     Kp = 800 * Eigen::MatrixXd::Identity( 3, 3 );
     Bp =  80 * Eigen::MatrixXd::Identity( 3, 3 );
 
-    Kq = 4.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
-    Bq = 1.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
+    Kq = 6.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
+    Bq = 1.5 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
+
+    Bq( 3, 3 ) = 5;
+
 
     // Initial print
     printf( "Exp[licit](c)-cpp-FRI, https://explicit-robotics.github.io \n\n" );
@@ -175,10 +298,11 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     printf( "' initialised. Ready to rumble! \n" );
     printf( "The current script runs Task-space Impedance Control, Position\n" );
 
-    Kq_gain = 0;
+    Kq_gain  = 0;
+    tmp_gain = 0;
 
-        // Open a file
-    f.open( "singularity_test1.txt" );
+    // Open a file
+    f.open( "singularity_test3.txt" );
     fmt = Eigen::IOFormat(5, 0, ", ", "\n", "[", "]");
 
 
@@ -325,7 +449,6 @@ void MyLBRClient::command()
         dq[ i ] = ( q_curr[ i ] - q_old[ i ]) / ts;
     }
 
-
     // ************************************************************ //
     // ********************* CONTROLLER START ********************* //
     // ************************************************************ //
@@ -334,25 +457,6 @@ void MyLBRClient::command()
     H = myLBR->getForwardKinematics( q );
     p_curr = H.block< 3, 1 >( 0, 3 );
     R_curr = H.block< 3, 3 >( 0, 0 );
-
-    // The difference between the two rotation matrices
-    R_del   = R_curr.transpose( ) * R_des;
-
-    // Changing the code
-    theta = acos( ( R_del.trace( ) - 1 )/2 );
-
-    if( theta >= 0.001 )
-    {
-        w_axis_mat = ( R_del - R_del.transpose( ) ) / ( 2 * sin( theta ) );
-    }
-    else
-    {
-        w_axis_mat = Eigen::Matrix3d::Zero( 3, 3 );
-    }
-
-    w_axis( 0 ) = -w_axis_mat( 1, 2 );
-    w_axis( 1 ) =  w_axis_mat( 0, 2 );
-    w_axis( 2 ) = -w_axis_mat( 0, 1 );
 
     // Get the current end-effector velocity
     // Hybrid Jacobian Matrix (6x7) and its linear velocity part (3x7)
@@ -365,57 +469,76 @@ void MyLBRClient::command()
     dp_curr = Jp * dq;
 
     // Get the virtual trajectory
-    p01  = mjt1->getPosition( std::fmod( t, t_freq ) );
-    dp01 = mjt1->getVelocity( std::fmod( t, t_freq ) );
-    p02  = mjt2->getPosition( std::fmod( t, t_freq ) );
-    dp02 = mjt2->getVelocity( std::fmod( t, t_freq ) );
-    p03  = mjt3->getPosition( std::fmod( t, t_freq ) );
-    dp03 = mjt3->getVelocity( std::fmod( t, t_freq ) );
-    p04  = mjt4->getPosition( std::fmod( t, t_freq ) );
-    dp04 = mjt4->getVelocity( std::fmod( t, t_freq ) );
-    p05  = mjt5->getPosition( std::fmod( t, t_freq ) );
-    dp05 = mjt5->getVelocity( std::fmod( t, t_freq ) );
-    p06  = mjt6->getPosition( std::fmod( t, t_freq ) );
-    dp06 = mjt6->getVelocity( std::fmod( t, t_freq ) );
-    p07  = mjt7->getPosition( std::fmod( t, t_freq ) );
-    dp07 = mjt7->getVelocity( std::fmod( t, t_freq ) );
-    p08  = mjt8->getPosition( std::fmod( t, t_freq ) );
-    dp08 = mjt8->getVelocity( std::fmod( t, t_freq ) );
+    p01  = mjt_p1->getPosition( t );
+    dp01 = mjt_p1->getVelocity( t );
+    p02  = mjt_p2->getPosition( t );
+    dp02 = mjt_p2->getVelocity( t );
+    p03  = mjt_p3->getPosition( t );
+    dp03 = mjt_p3->getVelocity( t );
+    p04  = mjt_p4->getPosition( t );
+    dp04 = mjt_p4->getVelocity( t );
+    p05  = mjt_p5->getPosition( t );
+    dp05 = mjt_p5->getVelocity( t );
+    p06  = mjt_p6->getPosition( t );
+    dp06 = mjt_p6->getVelocity( t );
 
-    p0  =  p01 +  p02 +  p03 +  p04 +  p05 +  p06 +  p07 +  p08;
-    dp0 = dp01 + dp02 + dp03 + dp04 + dp05 + dp06 + dp07 + dp08;
+    // Get the virtual trajectory
+    w01  = mjt_w1->getPosition( t );
+    w02  = mjt_w2->getPosition( t );
+    w03  = mjt_w3->getPosition( t );
+    w04  = mjt_w4->getPosition( t );
+    w05  = mjt_w5->getPosition( t );
+    w06  = mjt_w6->getPosition( t );
 
-    // Calculate the tau
-    // For Maintaining the Robot Posture
-    //    tau_imp1 = Jp.transpose( ) * ( Kp * ( p0i - p_curr ) + Bp * ( - dp_curr ) );
 
-    if( std::fmod( t, t_freq )  >= ( ti + 7 * ( D + toff ) ) && std::fmod( t, t_freq )  <= ( ti + 7 * ( D + toff ) + 0.5*D ) )
+    // Task-space position
+    p0  =  p01 +  p02 +  p03 +  p04 +  p05 +  p06;
+    dp0 = dp01 + dp02 + dp03 + dp04 + dp05 + dp06;
+
+    R_des = R_init * R3_to_SO3( w01 ) * R3_to_SO3( w02 ) * R3_to_SO3( w03 ) * R3_to_SO3( w04 ) * R3_to_SO3( w05 ) * R3_to_SO3( w06 );
+
+    if( t >= t2i && t <= ( t2i + 0.5*D1 ) )
     {
-        if( Kq_gain <= 1 )
+        Kq_gain += 0.002;
+        if( Kq_gain >= 1)
         {
-            Kq_gain += 0.001;
+            Kq_gain = 1.0;
         }
-        else
+    }
+    else if( t >= ( t2i + 0.5*D1 ) && t <= ( t2i + 1.0*D1 ) )
+    {
+        Kq_gain -= 0.005;
+        if( Kq_gain <= 0 )
         {
-            Kq_gain = 1;
+            Kq_gain = 0.0;
         }
     }
 
-    if( std::fmod( t, t_freq )  >= ( ti + 7 * ( D + toff ) + 0.5*D ) && std::fmod( t, t_freq ) <= ( ti + 8 * ( D + toff ) ) )
+    else if( t >= ( t4i ) && t <= ( t4i + 0.5*D3 ) )
     {
-        if( Kq_gain >= 0 )
+        Kq_gain += 0.002;
+        if( Kq_gain >= 1)
         {
-            Kq_gain -= 0.001;
-        }
-        else
-        {
-            Kq_gain = 0;
+            Kq_gain = 1.0;
         }
     }
+    else if( t >= ( t4i + 0.5*D3 ) && t <= ( t4i + 1.0*D3  ) )
+    {
+        Kq_gain -= 0.005;
+        if( Kq_gain <= 0 )
+        {
+            Kq_gain = 0.0;
+        }
+    }
+
+
+    // The difference between the two rotation matrices
+    R_del   = R_curr.transpose( ) * R_des;
+    w_axis = so3_to_R3( SO3_to_so3( R_del ) );
 
     tau_imp1 = Jp.transpose( ) * ( Kp * ( p0 - p_curr ) + Bp * ( dp0 - dp_curr ) );
     tau_imp2 = Kq_gain * Kq * ( q0_init - q ) + Bq * ( -dq );
-    tau_imp3 = Jr.transpose( ) * ( 50 * R_curr * w_axis * theta - 5 * Jr * dq );
+    tau_imp3 = Jr.transpose( ) * ( 60 * R_curr * w_axis - 5 * Jr * dq );
 
     // Superposition of Mechanical Impedances
     tau_ctrl = tau_imp1 + tau_imp2 + tau_imp3;
@@ -423,19 +546,18 @@ void MyLBRClient::command()
     // Saving not every time but every
 
     // If the counter reaches the threshold, print to console
-    if ( n_step == 5 )
-    {
-        f << "Time: " << std::fixed << std::setw( 5 ) << t;
-        f << "  q values: " << q.transpose( ).format( fmt );
-        f << " p0 values: " << p0.transpose( ).format( fmt );
-        f << "K gains"      << Kq_gain << std::endl;
-        end = std::chrono::steady_clock::now( );
+//    if ( n_step == 5 )
+//    {
+//        f << "Time: " << std::fixed << std::setw( 5 ) << t;
+//        f << "  q values: " <<  q.transpose( ).format( fmt );
+//        f << " p0 values: " << p0.transpose( ).format( fmt ) << std::endl;
+//        end = std::chrono::steady_clock::now( );
 
-        std::cout << "Elapsed time for The Torque Calculation "
-                  << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
-                  << " us" << std::endl;
-        n_step = 0;
-    }
+//        std::cout << "Elapsed time for The Torque Calculation "
+//                  << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
+//                  << " us" << std::endl;
+//        n_step = 0;
+//    }
 
 
 

@@ -190,7 +190,10 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     f.open( "singularity_test3.txt" );
     fmt = Eigen::IOFormat(5, 0, ", ", "\n", "[", "]");
 
+    f << "q virtual first values: "  << q0_init.transpose(  ).format( fmt ) << std::endl;
+    f << "q virtual second values: " << q0_init2.transpose( ).format( fmt ) << std::endl;
 
+    int type = 0;
 }
 
 
@@ -401,6 +404,7 @@ void MyLBRClient::command()
         }
         q0_curr = q0_init2;
         Bq( 3,3 ) = 10.0;
+        type = 2;
     }
     else if( std::fmod( t, t_freq ) >= ( ti + 1 * ( D + toff ) + 0.5*D ) && std::fmod( t, t_freq ) <= ( ti + 1 * ( D + toff ) + D ) )
     {
@@ -414,6 +418,7 @@ void MyLBRClient::command()
         }
         q0_curr = q0_init2;
         Bq( 3,3 ) = 10.0;
+        type = 2;
     }
     else if( std::fmod( t, t_freq ) >= ( ti + 3 * ( D + toff ) ) && std::fmod( t, t_freq ) <= ( ti + 3 * ( D + toff ) + 0.5*D ) )
     {
@@ -428,6 +433,7 @@ void MyLBRClient::command()
         }
         q0_curr = q0_init;
         Bq( 3,3 ) = 10.0;
+        type = 1;
     }
     else if( std::fmod( t, t_freq ) >= ( ti + 3 * ( D + toff ) + 0.5*D ) && std::fmod( t, t_freq ) <= ( ti + 3 * ( D + toff ) + D ) )
     {
@@ -441,6 +447,7 @@ void MyLBRClient::command()
         }
         q0_curr = q0_init;
         Bq( 3,3 ) = 10.0;
+        type = 1;
     }
 
 
@@ -458,7 +465,9 @@ void MyLBRClient::command()
     {
         f << "Time: " << std::fixed << std::setw( 5 ) << t;
         f << "  q values: " << q.transpose( ).format( fmt );
-        f << " p0 values: " << p0.transpose( ).format( fmt ) << std::endl;
+        f << " p0 values: " << p0.transpose( ).format( fmt );
+        f << " Type: " << type;
+        f << " K gains"      << Kq_gain << std::endl;
         end = std::chrono::steady_clock::now( );
 
         std::cout << "Elapsed time for The Torque Calculation "

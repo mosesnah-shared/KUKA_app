@@ -1,6 +1,6 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.2)
 
-PROJECT (SingularityDemoFailure)
+PROJECT (SingularityInfinity)
 
 
 ## include directories
