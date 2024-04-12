@@ -233,18 +233,11 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     t2i = t1f + 2*toff;
     t2f = t2i + D1;
 
-
-    mjt_p1  = new MinimumJerkTrajectory( 3,                              p0i,      p0i, D1, t1i );
-    mjt_p2  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),     delx, D1, t1i + 8.0 );
-    mjt_p3  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),   - delx, D1, 1.0 );
+    mjt_p1  = new MinimumJerkTrajectory( 3,                              p0i,  p0i + delx, D1, t1i );
+    mjt_p2  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),      - delx, D1, 1.0 );
 
     // mjt for orientation
     // For the first one, from
-    Eigen::Vector3d wdel1 = so3_to_R3( SO3_to_so3( R_init.transpose( ) * R_des2 ) );
-
-    mjt_w1  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  wdel1, D1, t1i );
-    mjt_w2  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  Eigen::Vector3d( 0.0, 0.0, 0.0 ), D1, t1i );
-    mjt_w3  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), -wdel1, D1, 1.0 );
 
 
     // The taus (or torques) for the command
@@ -425,6 +418,9 @@ void MyLBRClient::command()
     memcpy( q_old, q_curr, 7*sizeof( double ) );
     memcpy( q_curr, robotState( ).getMeasuredJointPosition( ), 7*sizeof(double) );
 
+    std::memcpy( tau_ext,  robotState().getExternalTorque( ) , 7*sizeof( double ) );
+
+
     for (int i=0; i < myLBR->nq; i++)
     {
         q[ i ] = q_curr[ i ];
@@ -441,13 +437,13 @@ void MyLBRClient::command()
 
     start = std::chrono::steady_clock::now( );
     H = myLBR->getForwardKinematics( q );
+    J = myLBR->getHybridJacobian( q );
+
     p_curr = H.block< 3, 1 >( 0, 3 );
     R_curr = H.block< 3, 3 >( 0, 0 );
 
     // Get the current end-effector velocity
     // Hybrid Jacobian Matrix (6x7) and its linear velocity part (3x7)
-    J  = myLBR->getHybridJacobian( q );
-
     Jp = J.block( 0, 0, 3, myLBR->nq );
     Jr = J.block( 3, 0, 3, myLBR->nq );
 
@@ -457,25 +453,19 @@ void MyLBRClient::command()
     // Get the virtual trajectory
     p01  = mjt_p1->getPosition( t );
     dp01 = mjt_p1->getVelocity( t );
-    p02  = mjt_p2->getPosition( t );
-    dp02 = mjt_p2->getVelocity( t );
-    w01  = mjt_w1->getPosition( t );
-    w02  = mjt_w2->getPosition( t );
 
     // Task-space position
-    p0  =  p01 +  p02;
-    dp0 = dp01 + dp02;
-    R_des = R_init * R3_to_SO3( w01 ) * R3_to_SO3( w02 );
+    p0  =  p01;
+    dp0 = dp01;
+    R_des = R_init; // * R3_to_SO3( w01 ) * R3_to_SO3( w02 );
 
     if ( is_pressed )
     {
-        w03  = mjt_w3->getPosition( t_sep );
-        p03  = mjt_p3->getPosition( t_sep );
-        dp03 = mjt_p3->getVelocity( t_sep );
+        p02  = mjt_p2->getPosition( t_sep );
+        dp02 = mjt_p2->getVelocity( t_sep );
 
-        p0  =  p0 +  p03;
-        dp0 = dp0 + dp03;
-        R_des = R_des * R3_to_SO3( w03 );
+        p0  =  p0 +  p02;
+        dp0 = dp0 + dp02;
     }
 
     if( t_sep >= 1.0 && t_sep <= ( 1.0 + D1*0.5 ) )
@@ -489,6 +479,7 @@ void MyLBRClient::command()
             Kq_gain = 1;
         }
     }
+
     if( t_sep >= ( 1.0 + D1*0.5) && t_sep <= ( 1.0 + D1*1.0 ) )
     {
         if( Kq_gain >= 0 )
@@ -500,7 +491,6 @@ void MyLBRClient::command()
             Kq_gain = 0;
         }
     }
-
 
     // The difference between the two rotation matrices
     R_del   = R_curr.transpose( ) * R_des;
@@ -516,14 +506,13 @@ void MyLBRClient::command()
     // If the counter reaches the threshold, print to console
     if ( n_step == 5 )
     {
-        std::memcpy( tau_ext,  robotState().getExternalTorque( ) , 7*sizeof( double ) );
-
         f << "Time: " << std::fixed << std::setw( 5 ) << t;
         f << " External Torque " ;
         for (int i = 0; i < 7; ++i)
         {
             f << tau_ext[ i ] << " ";
         }
+        f << " Joint Angle " << q.transpose( ).format( fmt ) ;
         f << std::endl;
 
         end = std::chrono::steady_clock::now( );
@@ -546,7 +535,6 @@ void MyLBRClient::command()
         std::cout << "Button Pressed!" << std::endl;
 
     }
-
 
 
     // ************************************************************ //

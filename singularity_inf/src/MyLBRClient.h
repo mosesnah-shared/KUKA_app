@@ -206,14 +206,19 @@ private:
     Eigen::VectorXd tau_ctrl;
     Eigen::VectorXd tau_prev;
     Eigen::VectorXd tau_imp1;
+    Eigen::VectorXd tau_ext_eigen;
     Eigen::VectorXd tau_imp2;
     Eigen::VectorXd tau_imp3;
+    Eigen::VectorXd F_ext;
     Eigen::VectorXd tau_pprev;
     Eigen::VectorXd tau_total;
 
     // DECLARE VARIABLES FOR YOUR CONTROLLER HERE!!!
     Eigen::Matrix4d H;
+    Eigen::MatrixXd M;
+    Eigen::MatrixXd Lambda_inv;
     Eigen::MatrixXd J;
+    Eigen::MatrixXd JB;     // Get Body Jacobian
     Eigen::MatrixXd Jp;     // The position Jacobian
     Eigen::MatrixXd Jr;     // The rotation Jacobian
     Eigen::Matrix3d Kp;     // Task-space stiffness, position
