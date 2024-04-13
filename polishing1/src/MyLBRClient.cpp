@@ -216,7 +216,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     q_init[6] =  0.000 * M_PI/180;
 
     // Use Explicit-cpp to create your robot
-    myLBR = new iiwa14( 1, "Dwight" );
+    myLBR = new iiwa14( 1, "Dwight", Eigen::Vector3d( 0.0, 0.0, 0.15 ) );
 
     // Initialization must be called!!
     myLBR->init( );
@@ -275,8 +275,8 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
 
     p0i = p_curr;
 
-    delx = Eigen::Vector3d( -0.20, 0.0, 0.0 );
-    delz = Eigen::Vector3d( 0.0, 0.0, -0.39 );
+    delx = Eigen::Vector3d( -0.35, 0.0, 0.0 );
+    delz = Eigen::Vector3d( 0.0, 0.0, -0.58 );
 
     // mjt for position
     t1i = 1.0;
@@ -284,7 +284,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     Eigen::Vector3d wdel1 = so3_to_R3( SO3_to_so3( R_init.transpose( ) * R_des2 ) );
 
     mjt_p1  = new MinimumJerkTrajectory( 3,  p0i,  p0i + delx, D1, t1i );
-    mjt_p2  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  delz, D1, t1i + D1 - 1.0 );
+    mjt_p2  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  delz, D1, t1i + D1 - 1.5 );
 
     mjt_w1  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  wdel1, D1, t1i );
 
@@ -309,7 +309,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
 
     // The stiffness/damping matrices
     Kp = 600 * Eigen::MatrixXd::Identity( 3, 3 );
-    Bp =  80 * Eigen::MatrixXd::Identity( 3, 3 );
+    Bp =  40 * Eigen::MatrixXd::Identity( 3, 3 );
 
     Kq = 6.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
     Bq = 4.5 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
@@ -323,7 +323,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     printf( "The current script runs Task-space Impedance Control, Position\n" );
 
     // Open a file
-    f.open( "polishing_w_osc_fast.txt" );
+    f.open( "polishing_data.txt" );
     fmt = Eigen::IOFormat(5, 0, ", ", "\n", "[", "]");
 
     // Read the Data
@@ -526,7 +526,7 @@ void MyLBRClient::command()
            if (N_cnt % 1 == 0)
             {
                 // Either 4 or 3
-                N_curr_pos+=4;
+                N_curr_pos+=3;
             }
 
         }

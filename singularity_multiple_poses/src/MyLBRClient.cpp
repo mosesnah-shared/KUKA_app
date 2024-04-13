@@ -223,44 +223,24 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
 
     p0i = p_curr;
 
-    delx = Eigen::Vector3d( 0.4, 0.0, 0.0 );
-    dely = Eigen::Vector3d( 0.0, 0.4, 0.0 );
-    delz = Eigen::Vector3d( 0.0, 0.0, 0.3 );
+    delx = Eigen::Vector3d( 0.47,  0.00, 0.0 );
+    dely = Eigen::Vector3d( 0.0, -0.15, 0.0 );
+    delz = Eigen::Vector3d( 0.0,  0.00, 0.4 );
 
     // mjt for position
     t1i = ti;
     t1f = ti + D1;
     t2i = t1f + 2*toff;
-    t2f = t2i + D1;
-    t3i = t2f + 2*toff;
-    t3f = t3i + D2;
-    t4i = t3f + 2*toff;
-    t4f = t4i + D2;
-    t5i = t4f + 2*toff;
-    t5f = t5i + D2;
-    t6i = t5f + 2*toff;
-    t6f = t6i + D2;
 
+    mjt_p1  = new MinimumJerkTrajectory( 3,                              p0i,    p0i +0.3*delx + 0.2*delz, D1, t1i );
 
-    mjt_p1  = new MinimumJerkTrajectory( 3,                              p0i,    p0i + delx, D1, t1i );
-    mjt_p2  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),        - delx, D1, t2i );
-    mjt_p3  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),   delx + delz, D2, t3i );
-    mjt_p4  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), - delx - delz, D2, t4i );
-    mjt_p5  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  0.5*delx + 1.5*delz, D2, t5i );
-    mjt_p6  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), -1.0*delx + 1.5*delz, D2, t6i );
+    mjt_p2  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),        -0.6*delx + 1.3*delz, D1, t1i );
+    mjt_p3  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),        -1.0*delx + 2.0*delz + dely, D1, t2i );
 
     // mjt for orientation
     // For the first one, from
-    Eigen::Vector3d wdel1 = so3_to_R3( SO3_to_so3( R_init.transpose( ) * R_des2 ) );
-    Eigen::Vector3d wdel2 = so3_to_R3( SO3_to_so3( R_init.transpose( ) * R_des1 ) );
-
-    mjt_w1  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  wdel1, D1, t1i );
-    mjt_w2  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), -wdel1, D1, t2i );
-    mjt_w3  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  wdel2, D2, t3i );
-    mjt_w4  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), -wdel2, D2, t4i );
-    mjt_w5  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  wdel2, D2, t5i );
-    mjt_w6  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), Eigen::Vector3d( 0.0, 0.0, 0.0 ), D2, t6i );
-
+    //    Eigen::Vector3d wdel1 = so3_to_R3( SO3_to_so3( R_init.transpose( ) * R_des1 ) );
+    //    mjt_w1  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  wdel1, D1, t1i );
 
     // The taus (or torques) for the command
     tau_ctrl   = Eigen::VectorXd::Zero( myLBR->nq );    // The torque from the controller design,
@@ -282,8 +262,8 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     Jr = Eigen::MatrixXd::Zero( 3, myLBR->nq );
 
     // The stiffness/damping matrices
-    Kp = 800 * Eigen::MatrixXd::Identity( 3, 3 );
-    Bp =  80 * Eigen::MatrixXd::Identity( 3, 3 );
+    Kp = 200 * Eigen::MatrixXd::Identity( 3, 3 );
+    Bp =  20 * Eigen::MatrixXd::Identity( 3, 3 );
 
     Kq = 6.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
     Bq = 1.5 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
@@ -302,9 +282,10 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     tmp_gain = 0;
 
     // Open a file
-    f.open( "singularity_test3.txt" );
+    f.open( "weight_lifting.txt" );
     fmt = Eigen::IOFormat(5, 0, ", ", "\n", "[", "]");
 
+    is_pressed = false;
 
 }
 
@@ -439,6 +420,9 @@ void MyLBRClient::command()
     memcpy( q_old, q_curr, 7*sizeof( double ) );
     memcpy( q_curr, robotState( ).getMeasuredJointPosition( ), 7*sizeof(double) );
 
+    std::memcpy( tau_ext,  robotState().getExternalTorque( ) , 7*sizeof( double ) );
+
+
     for (int i=0; i < myLBR->nq; i++)
     {
         q[ i ] = q_curr[ i ];
@@ -469,68 +453,27 @@ void MyLBRClient::command()
     dp_curr = Jp * dq;
 
     // Get the virtual trajectory
-    p01  = mjt_p1->getPosition( t );
-    dp01 = mjt_p1->getVelocity( t );
-    p02  = mjt_p2->getPosition( t );
-    dp02 = mjt_p2->getVelocity( t );
-    p03  = mjt_p3->getPosition( t );
-    dp03 = mjt_p3->getVelocity( t );
-    p04  = mjt_p4->getPosition( t );
-    dp04 = mjt_p4->getVelocity( t );
-    p05  = mjt_p5->getPosition( t );
-    dp05 = mjt_p5->getVelocity( t );
-    p06  = mjt_p6->getPosition( t );
-    dp06 = mjt_p6->getVelocity( t );
-
-    // Get the virtual trajectory
     w01  = mjt_w1->getPosition( t );
-    w02  = mjt_w2->getPosition( t );
-    w03  = mjt_w3->getPosition( t );
-    w04  = mjt_w4->getPosition( t );
-    w05  = mjt_w5->getPosition( t );
-    w06  = mjt_w6->getPosition( t );
 
-
-    // Task-space position
-    p0  =  p01 +  p02 +  p03 +  p04 +  p05 +  p06;
-    dp0 = dp01 + dp02 + dp03 + dp04 + dp05 + dp06;
-
-    R_des = R_init * R3_to_SO3( w01 ) * R3_to_SO3( w02 ) * R3_to_SO3( w03 ) * R3_to_SO3( w04 ) * R3_to_SO3( w05 ) * R3_to_SO3( w06 );
-
-    if( t >= t2i && t <= ( t2i + 0.5*D1 ) )
+    if ( is_pressed )
     {
-        Kq_gain += 0.002;
-        if( Kq_gain >= 1)
-        {
-            Kq_gain = 1.0;
-        }
+
+        // Get the virtual trajectory
+        p01  = mjt_p2->getPosition( t_sep );
+        dp01 = mjt_p2->getVelocity( t_sep );
+        p02  = mjt_p3->getPosition( t_sep );
+        dp02 = mjt_p3->getVelocity( t_sep );
+
+         p0 = mjt_p1->getPosition( t ) +  p01 +  p02;
+        dp0 = mjt_p1->getVelocity( t ) + dp01 + dp02;
     }
-    else if( t >= ( t2i + 0.5*D1 ) && t <= ( t2i + 1.0*D1 ) )
+    else
     {
-        Kq_gain -= 0.005;
-        if( Kq_gain <= 0 )
-        {
-            Kq_gain = 0.0;
-        }
+        p0   = mjt_p1->getPosition( t );
+        dp0  = mjt_p1->getVelocity( t );
     }
 
-    else if( t >= ( t4i ) && t <= ( t4i + 0.5*D3 ) )
-    {
-        Kq_gain += 0.002;
-        if( Kq_gain >= 1)
-        {
-            Kq_gain = 1.0;
-        }
-    }
-    else if( t >= ( t4i + 0.5*D3 ) && t <= ( t4i + 1.0*D3  ) )
-    {
-        Kq_gain -= 0.005;
-        if( Kq_gain <= 0 )
-        {
-            Kq_gain = 0.0;
-        }
-    }
-
+    R_des = R_init;// * R3_to_SO3( w01 );
 
     // The difference between the two rotation matrices
     R_del   = R_curr.transpose( ) * R_des;
@@ -546,18 +489,22 @@ void MyLBRClient::command()
     // Saving not every time but every
 
     // If the counter reaches the threshold, print to console
-//    if ( n_step == 5 )
-//    {
-//        f << "Time: " << std::fixed << std::setw( 5 ) << t;
-//        f << "  q values: " <<  q.transpose( ).format( fmt );
-//        f << " p0 values: " << p0.transpose( ).format( fmt ) << std::endl;
-//        end = std::chrono::steady_clock::now( );
+    if ( n_step == 5 )
+    {
+        f << "Time: " << std::fixed << std::setw( 5 )  << t;
+        for (int i = 0; i < 7; ++i)
+        {
+            f << " Tau Ext: " << tau_ext[ i ] << " ";
+        }
+        f << "  q values: " <<  q.transpose( ).format( fmt );
+        f << " p virtual values: " << p0.transpose( ).format( fmt ) << std::endl;
+        end = std::chrono::steady_clock::now( );
 
-//        std::cout << "Elapsed time for The Torque Calculation "
-//                  << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
-//                  << " us" << std::endl;
-//        n_step = 0;
-//    }
+        std::cout << "Elapsed time for The Torque Calculation "
+                  << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
+                  << " us" << std::endl;
+        n_step = 0;
+    }
 
 
 
@@ -597,8 +544,23 @@ void MyLBRClient::command()
     }
 
 
+    // Check button pressed
+    if ( robotState().getBooleanIOValue( "MediaFlange.UserButton" ) && !is_pressed )
+    {
+        is_pressed = true;
+
+        // Reset the time and number of steps
+        t_sep = 0;
+
+        // Turn on imitation learning
+        std::cout << "Button Pressed!" << std::endl;
+
+    }
+
+
     // Add the sample time to the current time
     t += ts;
+    t_sep += ts;
     n_step++;
 
 

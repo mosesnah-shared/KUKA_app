@@ -265,6 +265,10 @@ private:
 
     double ti  ;
     double toff;
+    double t_sep;
+
+    double tau_ext[7];
+
 
     std::chrono::steady_clock::time_point start;
     std::chrono::steady_clock::time_point end;
@@ -277,6 +281,8 @@ private:
     // File for Saving the Data
     std::ofstream f;
     Eigen::IOFormat fmt;
+
+    bool is_pressed;
 };
 
 #endif // _KUKA_FRI_MY_LBR_CLIENT_H

@@ -218,12 +218,12 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     D1   = 3.0;
     D2   = 3.0;
     D3   = 5.0;
-    ti   = 1.0;
+    ti   = 5.0;
     toff = 0.5;
 
     p0i = p_curr;
 
-    delx = Eigen::Vector3d( 0.4, 0.0, 0.0 );
+    delx = Eigen::Vector3d( 0.45, 0.1, -0.05 );
     dely = Eigen::Vector3d( 0.0, 0.4, 0.0 );
     delz = Eigen::Vector3d( 0.0, 0.0, 0.3 );
 
@@ -233,7 +233,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     t2i = t1f + 2*toff;
     t2f = t2i + D1;
 
-    mjt_p1  = new MinimumJerkTrajectory( 3,                              p0i,  p0i + delx, D1, t1i );
+    mjt_p1  = new MinimumJerkTrajectory( 3,                              p0i,  p0i + delx, D1+1.0, t1i );
     mjt_p2  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),      - delx, D1, 1.0 );
 
     // mjt for orientation
@@ -260,8 +260,8 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     Jr = Eigen::MatrixXd::Zero( 3, myLBR->nq );
 
     // The stiffness/damping matrices
-    Kp = 400 * Eigen::MatrixXd::Identity( 3, 3 );
-    Bp =  40 * Eigen::MatrixXd::Identity( 3, 3 );
+    Kp = 200 * Eigen::MatrixXd::Identity( 3, 3 );
+    Bp =  20 * Eigen::MatrixXd::Identity( 3, 3 );
 
     Kq = 6.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
     Bq = 1.5 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
