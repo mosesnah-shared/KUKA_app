@@ -69,13 +69,14 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude){
     /** Initialization */
 
     // THIS CONFIGURATION MUST BE THE SAME AS FOR THE JAVA APPLICATION!!
-    qInitial[0] =   10.03 * M_PI/180;
-    qInitial[1] =   54.30 * M_PI/180;
-    qInitial[2] =    0.54 * M_PI/180;
-    qInitial[3] =  -83.51 * M_PI/180;
-    qInitial[4] =  -16.14 * M_PI/180;
-    qInitial[5] =  -45.99 * M_PI/180;
-    qInitial[6] =  102.20 * M_PI/180;
+    qInitial[0] =  -3.21 * M_PI/180;
+    qInitial[1] =  46.19 * M_PI/180;
+    qInitial[2] =  17.52 * M_PI/180;
+    qInitial[3] = -87.16 * M_PI/180;
+    qInitial[4] =  -5.03 * M_PI/180;
+    qInitial[5] = -37.73 * M_PI/180;
+    qInitial[6] =  0.000 * M_PI/180;
+
     // Use Explicit-cpp to create your robot
     myLBR = new iiwa14( 1, "Dwight");
     myLBR->init( );
@@ -110,7 +111,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude){
     J = Eigen::MatrixXd::Zero( 6, myLBR->nq );
 
     // Open a file
-    f.open( "tmp.txt" );
+    f.open( "kin_stiff_data1.txt" );
     fmt = Eigen::IOFormat(5, 0, ", ", "\n", "[", "]");
 
     // Initial print
