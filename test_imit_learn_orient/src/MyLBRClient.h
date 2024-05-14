@@ -41,7 +41,6 @@ or otherwise, without the prior written consent of KUKA Roboter GmbH.
 
 #include <fstream>
 #include <chrono>
-#include <random>
 #include "friLBRClient.h"
 #include "exp_robots.h"
 #include "exp_trajs.h"
@@ -111,12 +110,12 @@ private:
     double q_arr[7];
     double dq_arr[7];
 
+    Eigen::Matrix3d R_init;
+    Eigen::Vector3d p_init;
 
     // Time parameters for control loop
     double ts;
     double t;
-    double t_sub; // Separate t_sub is useful
-    double t_max;
 
     // The number of time steps for the simulation
     int n_step;
@@ -127,26 +126,12 @@ private:
 
     // The virtual task-space trajectory, position.
     Eigen::Vector3d p0;
-    Eigen::Vector3d p0_right;
-    Eigen::Vector3d p0_left;
-
     Eigen::Vector3d dp0;
-
-    double t_freq;
-
-    Eigen::Vector3d p0i;
-    Eigen::Matrix3d R0i;
-
-    Eigen::Vector3d del1;
-    Eigen::Vector3d del2;
-
-    // The box where the robot should play
-    Eigen::Vector2d pmax;
-    Eigen::Vector2d pmin;
 
     // Current position and velocity as Eigen vector
     Eigen::VectorXd q;
     Eigen::VectorXd dq;
+    Eigen::VectorXd q0_init;
 
     // Command torque vectors (with and without constraints)
     Eigen::VectorXd tau_ctrl;
@@ -165,45 +150,27 @@ private:
     Eigen::Matrix3d Kp;     // Task-space stiffness, position
     Eigen::Matrix3d Bp;     // Task-space damping, position
     Eigen::MatrixXd Bq;     // Joint-space damping.
-    double          kr;     // Task-space stiffness, orientation
-    double          br;     // Task-space   damping, orientation
+    Eigen::MatrixXd Kq;     // Joint-space damping.
 
     Eigen::Matrix3d R_curr;  // SO(3) Matrix for the current orientation
+    Eigen::Matrix3d R_des;   // SO(3) Matrix for the desired orientation
     Eigen::Matrix3d R_del;   // SO(3) Matrix for the desired orientation
 
-    double D1;
-    double D2;
-    double ti;
+    Eigen::MatrixXd R_data;
+    Eigen::Vector3d w_axis;
 
-    // From current to set position
-    MinimumJerkTrajectory *mjt1;
+    int N_data;
+    int N_curr;
 
-    MinimumJerkTrajectory *mjt2; // From right to left movement
-    MinimumJerkTrajectory *mjt3; // From  left to left movement
+    bool is_pressed;
+    bool is_pos_done;
 
     std::chrono::steady_clock::time_point start;
     std::chrono::steady_clock::time_point end;
 
-    // The axis-angle of R_del
-    double theta;
-    Eigen::Matrix3d w_axis_mat;
-    Eigen::Vector3d w_axis;
-
-    // n_trial of the movement
-    int n_trials;
-    int n_movs;
-
-    // Radius and angular velocity of the oscillation
-    double r_osc;
-    double omega_osc;
-
     // File for Saving the Data
     std::ofstream f;
     Eigen::IOFormat fmt;
-
-    bool is_pressed;
-
-
 };
 
 #endif // _KUKA_FRI_MY_LBR_CLIENT_H

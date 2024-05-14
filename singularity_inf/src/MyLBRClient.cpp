@@ -258,7 +258,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     Kq_gain  = 0;
 
     // Open a file
-    f.open( "singularity_experiment.txt" );
+    f.open( "sing_exp.txt" );
     fmt = Eigen::IOFormat(5, 0, ", ", "\n", "[", "]");
 
     is_pressed_first   = false;
