@@ -43,7 +43,7 @@ or otherwise, without the prior written consent of KUKA Roboter GmbH.
 #include <chrono>
 #include "friLBRClient.h"
 #include "exp_robots.h"
-
+#include "exp_trajs.h"
 
 using namespace KUKA::FRI;
 /**
@@ -155,9 +155,13 @@ private:
     Eigen::Matrix3d R_curr;  // SO(3) Matrix for the current orientation
     Eigen::Matrix3d R_des;   // SO(3) Matrix for the desired orientation
     Eigen::Matrix3d R_del;   // SO(3) Matrix for the desired orientation
+    Eigen::Matrix3d R_init_des;
 
     Eigen::MatrixXd R_data;
     Eigen::Vector3d w_axis;
+    Eigen::Vector3d w01;
+
+    MinimumJerkTrajectory *mjt_w;
 
     int N_data;
     int N_curr;

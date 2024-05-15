@@ -43,6 +43,7 @@ or otherwise, without the prior written consent of KUKA Roboter GmbH.
 #include <chrono>
 #include "friLBRClient.h"
 #include "exp_robots.h"
+#include "exp_trajs.h"
 
 
 using namespace KUKA::FRI;
@@ -123,10 +124,12 @@ private:
     // Choose the body you want to control and the position on this body
     Eigen::Vector3d  p_curr;
     Eigen::Vector3d dp_curr;
+    MinimumJerkTrajectory *mjt_w;
 
     // The virtual task-space trajectory, position.
     Eigen::Vector3d p0;
     Eigen::Vector3d dp0;
+    Eigen::Vector3d w01;
 
     // Current position and velocity as Eigen vector
     Eigen::VectorXd q;
@@ -155,9 +158,11 @@ private:
     Eigen::Matrix3d R_curr;  // SO(3) Matrix for the current orientation
     Eigen::Matrix3d R_des;   // SO(3) Matrix for the desired orientation
     Eigen::Matrix3d R_del;   // SO(3) Matrix for the desired orientation
+    Eigen::Matrix3d R_init_des;
 
     Eigen::MatrixXd R_data;
     Eigen::Vector3d w_axis;
+    Eigen::Vector3d wdel;
 
     int N_data;
     int N_curr;

@@ -255,6 +255,14 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     p_curr  = p_init;
     R_curr  = R_init;
 
+    // Set the Rdesired postures
+    R_init_des << -0.3177, -0.2450,  0.9160,
+                   0.6259,  0.6715,  0.3967,
+                  -0.7123,  0.6993, -0.0599;
+
+    Eigen::Vector3d wdel = so3_to_R3( SO3_to_so3( R_init.transpose( ) * R_init_des ) );
+    mjt_w  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  wdel, 1.0, 1.0 );
+
     // The taus (or torques) for the command
     tau_ctrl   = Eigen::VectorXd::Zero( myLBR->nq );    // The torque from the controller design,
     tau_prev   = Eigen::VectorXd::Zero( myLBR->nq );    // The previous torque         , i.e., tau_{n-1} where tau_n is current value
@@ -480,9 +488,8 @@ void MyLBRClient::command()
         p0 += pos_data.col( N_curr );
     }
 
-
-    // The difference between the two rotation matrices
-    R_del   = R_curr.transpose( ) * R_init;
+    w01    = mjt_w->getPosition( t );
+    R_del  = R_curr.transpose( ) * ( R_init * R3_to_SO3( w01 ) );
     w_axis = so3_to_R3( SO3_to_so3( R_del ) );
 
     tau_imp1 = Jp.transpose( ) * ( Kp * ( p0 - p_curr ) + Bp * ( - dp_curr ) );

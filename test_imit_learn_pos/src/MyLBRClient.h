@@ -156,9 +156,14 @@ private:
     Eigen::Matrix3d R_init;  // SO(3) Matrix for the initial orientation
     Eigen::Matrix3d R_curr;  // SO(3) Matrix for the current orientation
     Eigen::Matrix3d R_del;  // SO(3) Matrix for the delta of orientation
+    Eigen::Matrix3d R_init_des;
 
     // Data from Imitation Learning
     Eigen::MatrixXd pos_data;
+
+    Eigen::Vector3d w01;
+
+    MinimumJerkTrajectory *mjt_w;
 
     double Kq_gain;
     int N_data;

@@ -255,6 +255,14 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
 
     dp_curr = Eigen::VectorXd::Zero( 3 );
 
+    // Set the Rdesired postures
+    R_init_des << -0.3177, -0.2450,  0.9160,
+                   0.6259,  0.6715,  0.3967,
+                  -0.7123,  0.6993, -0.0599;
+
+    Eigen::Vector3d wdel = so3_to_R3( SO3_to_so3( R_init.transpose( ) * R_init_des ) );
+    mjt_w  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  wdel, 1.0, 1.0 );
+
     // The taus (or torques) for the command
     tau_ctrl   = Eigen::VectorXd::Zero( myLBR->nq );    // The torque from the controller design,
     tau_prev   = Eigen::VectorXd::Zero( myLBR->nq );    // The previous torque         , i.e., tau_{n-1} where tau_n is current value
@@ -456,7 +464,9 @@ void MyLBRClient::command()
 
     // Calculate the current end-effector's position
     dp_curr = Jp * dq;
-    R_des = R_init * R_data.block< 3, 3 >( 0, 3*N_curr );
+
+    w01   = mjt_w->getPosition( t );
+    R_des = R_init * R3_to_SO3( w01 ) * R_data.block< 3, 3 >( 0, 3*N_curr );
 
     // Start the update
     if( is_pressed )
