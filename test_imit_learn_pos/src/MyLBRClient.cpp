@@ -49,7 +49,8 @@ or otherwise, without the prior written consent of KUKA Roboter GmbH.
 #include <vector>
 
 #include "MyLBRClient.h"
-#include "exp_robots.h"
+ #include "exp_robots.h"
+#include "exp_trajs.h"
 
 using namespace std;
 
@@ -223,7 +224,9 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     // These two variables are used as "Eigen" objects rather than a double array
     q  = Eigen::VectorXd::Zero( myLBR->nq );
     dq = Eigen::VectorXd::Zero( myLBR->nq );
-    q0_init = Eigen::VectorXd::Zero( myLBR->nq );
+    q0_init  = Eigen::VectorXd::Zero( myLBR->nq );
+    q0_curr  = Eigen::VectorXd::Zero( myLBR->nq );
+    dp_curr = Eigen::VectorXd::Zero( 3 );
 
     // Time variables for control loop
     t      = 0;     // The current Time
@@ -234,9 +237,9 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     for( int i=0; i < myLBR->nq; i++ )
     {
         q( i ) = q_init[ i ];
-        q_curr[ i ]  = q_init[ i ];
-         q_old[ i ]  = q_init[ i ];
-        q0_init[ i ] = q_init[ i ];
+        q0_init( i ) = q_init[ i ];
+        q_curr[ i ] = q_init[ i ];
+         q_old[ i ] = q_init[ i ];
 
          // The Actual command of the joint-position and torque
           q_command[ i ] = 0.0;
@@ -252,8 +255,6 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     p_curr  = p_init;
     R_curr  = R_init;
 
-    dp_curr = Eigen::VectorXd::Zero( 3 );
-
     // The taus (or torques) for the command
     tau_ctrl   = Eigen::VectorXd::Zero( myLBR->nq );    // The torque from the controller design,
     tau_prev   = Eigen::VectorXd::Zero( myLBR->nq );    // The previous torque         , i.e., tau_{n-1} where tau_n is current value
@@ -263,6 +264,8 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     tau_imp1   = Eigen::VectorXd::Zero( myLBR->nq );    // Position    Task-space  Impedance Control
     tau_imp2   = Eigen::VectorXd::Zero( myLBR->nq );    // Orientation Task-space  Impedance Control
     tau_imp3   = Eigen::VectorXd::Zero( myLBR->nq );    //             Joint-space Impedance Control
+
+    w_axis     = Eigen::Vector3d::Zero( 3 );
 
     // For the Task-space impedance control, the Forward Kinematics (H) and Hybrid Jacobian Matrix (JH) is Required
     H  = Eigen::Matrix4d::Zero( 4, 4 );
@@ -274,9 +277,9 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     Kp = 600 * Eigen::MatrixXd::Identity( 3, 3 );
     Bp =  40 * Eigen::MatrixXd::Identity( 3, 3 );
 
-    Kq = 6.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
+    Kq = 1.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
     Bq = 4.5 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
-2p0
+
     // Initial print
     printf( "Exp[licit](c)-cpp-FRI, https://explicit-robotics.github.io \n\n" );
     printf( "Robot '" );
@@ -284,12 +287,20 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     printf( "' initialised. Ready to rumble! \n" );
     printf( "The current script runs Task-space Impedance Control, Position\n" );
 
-    // Read the Data
-    R_data = readCSV( "/home/baxterplayground/Documents/DMPModular/data/csv/shake_2p0scl.csv" );
+    // Open a file
+    f.open( "cocktail_data.txt" );
+    fmt = Eigen::IOFormat(5, 0, ", ", "\n", "[", "]");
 
-    // Number of data points, and its current number
-    N_data = R_data.cols( )/3;
+    // Read the Data
+    pos_data = readCSV( "/home/baxterplayground/Documents/DMPModular/data/csv/shake_pos.csv" );
+    std::cout << "Matrix size: " << pos_data.rows() << " rows x " << pos_data.cols() << " columns" << std::endl;
+
+    N_data = pos_data.cols( );
     N_curr = 0;
+
+    is_pressed = false;
+    Kq_gain = 1.0;
+
 }
 
 
@@ -449,33 +460,33 @@ void MyLBRClient::command()
     Jp = J.block( 0, 0, 3, myLBR->nq );
     Jr = J.block( 3, 0, 3, myLBR->nq );
 
-    // Calculate the current end-effector's position
-    dp_curr = Jp * dq;
+    p0 = p_init;
 
-    R_des = R_init * R_data.block< 3, 3 >( 0, 3*N_curr );
-
-    // Start the update
-    if( t >= 2 )
+    if( is_pressed )
     {
-        if ( n_step % 1 == 0)
+        if( t_pressed >= 2.0 )
         {
-            // The update of N_curr
-            N_curr += 6;
+            if( n_step % 1 == 0 )
+            {
+                N_curr += 3.0;
+            }
+
+            if( N_curr > N_data )
+            {
+                N_curr = N_data - 1;
+            }
         }
 
-        if( N_curr >= N_data-1 )
-        {
-            N_curr = 0;
-        }
-
+        p0 += pos_data.col( N_curr );
     }
 
+
     // The difference between the two rotation matrices
-    R_del   = R_curr.transpose( ) * R_des;
+    R_del   = R_curr.transpose( ) * R_init;
     w_axis = so3_to_R3( SO3_to_so3( R_del ) );
 
-    tau_imp1 = Jp.transpose( ) * ( Kp * ( p_init - p_curr ) + Bp * ( - dp_curr ) );
-    tau_imp2 = Kq * ( q0_init - q ) + Bq * ( -dq );
+    tau_imp1 = Jp.transpose( ) * ( Kp * ( p0 - p_curr ) + Bp * ( - dp_curr ) );
+    tau_imp2 = Kq_gain * Kq * ( q0_init - q ) + Bq * ( -dq );
     tau_imp3 = Jr.transpose( ) * ( 70 * R_curr * w_axis - 5 * Jr * dq );
 
     // Superposition of Mechanical Impedances
@@ -516,7 +527,6 @@ void MyLBRClient::command()
         tau_pprev = tau_prev;
     }
 
-
     // If the counter reaches the threshold, print to console
     if (  ( n_step % 5 ) == 0 && is_pressed )
     {
@@ -532,8 +542,24 @@ void MyLBRClient::command()
         n_step = 0;
     }
 
+
+    // Check button pressed
+    if ( robotState().getBooleanIOValue( "MediaFlange.UserButton" ) && !is_pressed )
+    {
+        is_pressed = true;
+        t_pressed = 0.0;
+        // Turn on imitation learning
+        std::cout << "Button Pressed!" << std::endl;
+
+    }
+
     // Add the sample time to the current time
     t += ts;
     n_step++;
+
+    if( is_pressed )
+    {
+        t_pressed += ts;
+    }
 
 }

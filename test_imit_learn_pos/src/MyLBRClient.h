@@ -121,17 +121,17 @@ private:
     Eigen::Vector3d  p_curr;
     Eigen::Vector3d  p_init;
     Eigen::Vector3d dp_curr;
+    Eigen::Vector3d w_axis;
 
     // The virtual task-space trajectory, position.
     Eigen::Vector3d p0;
-    Eigen::Vector3d w01;
-
     Eigen::Vector3d dp0;
 
     // Current position and velocity as Eigen vector
     Eigen::VectorXd q;
     Eigen::VectorXd q0_init;
     Eigen::VectorXd q0_curr;
+    Eigen::VectorXd q0_init2;
     Eigen::VectorXd dq;
 
     // Command torque vectors (with and without constraints)
@@ -155,45 +155,20 @@ private:
 
     Eigen::Matrix3d R_init;  // SO(3) Matrix for the initial orientation
     Eigen::Matrix3d R_curr;  // SO(3) Matrix for the current orientation
-    Eigen::Matrix3d R_des;   // SO(3) Matrix for the desired orientation
-    Eigen::Matrix3d R_del;   // SO(3) Matrix for the desired orientation
-    Eigen::Matrix3d R_init_des;
-
-    MinimumJerkTrajectory *mjt_w;
+    Eigen::Matrix3d R_del;  // SO(3) Matrix for the delta of orientation
 
     // Data from Imitation Learning
     Eigen::MatrixXd pos_data;
-    Eigen::MatrixXd R_data_shake;
-    Eigen::MatrixXd R_data_pour;
 
     double Kq_gain;
+    int N_data;
+    int N_curr;
 
-    int N_pos_shake;
-    int N_orient_shake;
-    int N_orient_pour;
-
-    int N_curr_pos;
-    int N_curr_orient_shake;
-    int N_curr_orient_pour;
-
-    double t_pressed_first;
-    double t_pressed_second;
-
-    bool is_pressed_first;
-    bool is_pressed_second;
-    bool is_pos_done;
-    bool is_pour_done;
-
-    int n_shake;
-
-    int sgn;
-    double toff;
+    double t_pressed;
+    bool is_pressed;
 
     std::chrono::steady_clock::time_point start;
     std::chrono::steady_clock::time_point end;
-
-    Eigen::Matrix3d w_axis_mat;
-    Eigen::Vector3d w_axis;
 
     // File for Saving the Data
     std::ofstream f;

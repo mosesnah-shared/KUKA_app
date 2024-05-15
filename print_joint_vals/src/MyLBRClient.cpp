@@ -111,7 +111,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude){
     J = Eigen::MatrixXd::Zero( 6, myLBR->nq );
 
     // Open a file
-    f.open( "pour_demo1.txt" );
+    f.open( "pour_down1.txt" );
     fmt = Eigen::IOFormat(5, 0, ", ", "\n", "[", "]");
 
     // Initial print

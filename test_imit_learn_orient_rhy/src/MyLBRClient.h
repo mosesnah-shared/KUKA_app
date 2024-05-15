@@ -43,7 +43,6 @@ or otherwise, without the prior written consent of KUKA Roboter GmbH.
 #include <chrono>
 #include "friLBRClient.h"
 #include "exp_robots.h"
-#include "exp_trajs.h"
 
 
 using namespace KUKA::FRI;
@@ -110,29 +109,29 @@ private:
     double q_arr[7];
     double dq_arr[7];
 
+    Eigen::Matrix3d R_init;
+    Eigen::Vector3d p_init;
+
     // Time parameters for control loop
     double ts;
     double t;
+    double t_first;
 
     // The number of time steps for the simulation
     int n_step;
 
     // Choose the body you want to control and the position on this body
     Eigen::Vector3d  p_curr;
-    Eigen::Vector3d  p_init;
     Eigen::Vector3d dp_curr;
 
     // The virtual task-space trajectory, position.
     Eigen::Vector3d p0;
-    Eigen::Vector3d w01;
-
     Eigen::Vector3d dp0;
 
     // Current position and velocity as Eigen vector
     Eigen::VectorXd q;
-    Eigen::VectorXd q0_init;
-    Eigen::VectorXd q0_curr;
     Eigen::VectorXd dq;
+    Eigen::VectorXd q0_init;
 
     // Command torque vectors (with and without constraints)
     Eigen::VectorXd tau_ctrl;
@@ -153,47 +152,21 @@ private:
     Eigen::MatrixXd Bq;     // Joint-space damping.
     Eigen::MatrixXd Kq;     // Joint-space damping.
 
-    Eigen::Matrix3d R_init;  // SO(3) Matrix for the initial orientation
     Eigen::Matrix3d R_curr;  // SO(3) Matrix for the current orientation
     Eigen::Matrix3d R_des;   // SO(3) Matrix for the desired orientation
     Eigen::Matrix3d R_del;   // SO(3) Matrix for the desired orientation
-    Eigen::Matrix3d R_init_des;
 
-    MinimumJerkTrajectory *mjt_w;
+    Eigen::MatrixXd R_data;
+    Eigen::Vector3d w_axis;
 
-    // Data from Imitation Learning
-    Eigen::MatrixXd pos_data;
-    Eigen::MatrixXd R_data_shake;
-    Eigen::MatrixXd R_data_pour;
+    int N_data;
+    int N_curr;
 
-    double Kq_gain;
+    bool is_pressed;
 
-    int N_pos_shake;
-    int N_orient_shake;
-    int N_orient_pour;
-
-    int N_curr_pos;
-    int N_curr_orient_shake;
-    int N_curr_orient_pour;
-
-    double t_pressed_first;
-    double t_pressed_second;
-
-    bool is_pressed_first;
-    bool is_pressed_second;
-    bool is_pos_done;
-    bool is_pour_done;
-
-    int n_shake;
-
-    int sgn;
-    double toff;
 
     std::chrono::steady_clock::time_point start;
     std::chrono::steady_clock::time_point end;
-
-    Eigen::Matrix3d w_axis_mat;
-    Eigen::Vector3d w_axis;
 
     // File for Saving the Data
     std::ofstream f;

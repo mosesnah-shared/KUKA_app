@@ -48,10 +48,8 @@ or otherwise, without the prior written consent of KUKA Roboter GmbH.
 #include <iomanip>
 #include <vector>
 
-
 #include "MyLBRClient.h"
 #include "exp_robots.h"
-#include "exp_trajs.h"
 
 using namespace std;
 
@@ -225,21 +223,21 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     // These two variables are used as "Eigen" objects rather than a double array
     q  = Eigen::VectorXd::Zero( myLBR->nq );
     dq = Eigen::VectorXd::Zero( myLBR->nq );
-    q0_init  = Eigen::VectorXd::Zero( myLBR->nq );
-    q0_curr  = Eigen::VectorXd::Zero( myLBR->nq );
+    q0_init = Eigen::VectorXd::Zero( myLBR->nq );
 
     // Time variables for control loop
-    t      = 0;     // The current Time
-    ts     = 0;     // The  sample Time
-    n_step = 0;     // The number of time steps, integer
+    t       = 0.0;     // The current Time
+    ts      = 0.0;     // The  sample Time
+    t_first = 0.0;     // The time after first pressed
+    n_step  = 0.0;     // The number of time steps, integer
 
     // Initialize joint torques and joint positions (also needed for waitForCommand()!)
     for( int i=0; i < myLBR->nq; i++ )
     {
         q( i ) = q_init[ i ];
-        q0_init( i ) = q_init[ i ];
-        q_curr[ i ] = q_init[ i ];
-         q_old[ i ] = q_init[ i ];
+        q_curr[ i ]  = q_init[ i ];
+         q_old[ i ]  = q_init[ i ];
+        q0_init[ i ] = q_init[ i ];
 
          // The Actual command of the joint-position and torque
           q_command[ i ] = 0.0;
@@ -254,17 +252,8 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
 
     p_curr  = p_init;
     R_curr  = R_init;
+
     dp_curr = Eigen::VectorXd::Zero( 3 );
-
-    // Set the Rdesired postures
-    R_init_des << -0.3177, -0.2450,  0.9160,
-                   0.6259,  0.6715,  0.3967,
-                  -0.7123,  0.6993, -0.0599;
-
-    Eigen::Vector3d wdel = so3_to_R3( SO3_to_so3( R_init.transpose( ) * R_init_des ) );
-
-    mjt_w  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  wdel, 1.0, 1.0 );
-    w_axis  = Eigen::Vector3d::Zero( 3 );
 
     // The taus (or torques) for the command
     tau_ctrl   = Eigen::VectorXd::Zero( myLBR->nq );    // The torque from the controller design,
@@ -276,7 +265,6 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     tau_imp2   = Eigen::VectorXd::Zero( myLBR->nq );    // Orientation Task-space  Impedance Control
     tau_imp3   = Eigen::VectorXd::Zero( myLBR->nq );    //             Joint-space Impedance Control
 
-
     // For the Task-space impedance control, the Forward Kinematics (H) and Hybrid Jacobian Matrix (JH) is Required
     H  = Eigen::Matrix4d::Zero( 4, 4 );
     J  = Eigen::MatrixXd::Zero( 6, myLBR->nq );
@@ -287,50 +275,26 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     Kp = 600 * Eigen::MatrixXd::Identity( 3, 3 );
     Bp =  40 * Eigen::MatrixXd::Identity( 3, 3 );
 
-    Kq = 3.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
+    Kq = 6.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
     Bq = 4.5 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
-    Kq_gain = 1.0;
 
     // Initial print
     printf( "Exp[licit](c)-cpp-FRI, https://explicit-robotics.github.io \n\n" );
     printf( "Robot '" );
     printf( "%s", myLBR->Name );
     printf( "' initialised. Ready to rumble! \n" );
-    printf( "The current script runs Task-space Impedance Control, Position\n" );
-
-    // Open a file
-    f.open( "cocktail_data.txt" );
-    fmt = Eigen::IOFormat(5, 0, ", ", "\n", "[", "]");
+    printf( "The current script runs Task-space Impedance Control, Orientation, Discrete \n" );
 
     // Read the Data
-    pos_data     = readCSV( "/home/baxterplayground/Documents/DMPModular/data/csv/shake_pos.csv"    );
-    R_data_shake = readCSV( "/home/baxterplayground/Documents/DMPModular/data/csv/shake_2p0scl.csv" );
-    R_data_pour  = readCSV( "/home/baxterplayground/Documents/DMPModular/data/csv/pour_1p5scl.csv"     );
+    R_data = readCSV( "/home/baxterplayground/Documents/DMPModular/data/csv/pour_2p0scl.csv" );
 
-    N_pos_shake    =     pos_data.cols( );
-    N_orient_shake = R_data_shake.cols( )/3;
-    N_orient_pour  =  R_data_pour.cols( )/3;
+    // Number of data points, and its current number
+    N_data = R_data.cols( )/3;
+    N_curr = 0;
+    sgn = +1;
+    toff = 2.0;
 
-    N_curr_pos          = 0;
-    N_curr_orient_shake = 0;
-    N_curr_orient_pour  = 0;
-
-    // Sign of data increase for pour
-    sgn  = 1.0;
-    toff = 3.0;
-
-    std::cout << "Matrix size: " << pos_data.rows() << " rows x " << pos_data.cols() << " columns" << std::endl;
-    std::cout << "Data Length for Orientation, Rhythmic: " << N_orient_shake << std::endl;
-    std::cout << "Data Length for Orientation, Pouring:  " << N_orient_pour  << std::endl;
-
-    is_pos_done  = false;
-    is_pour_done = false;
-
-    is_pressed_first  = false;
-    is_pressed_second = false;
-
-    n_shake = 0;
-
+    is_pressed = false;
 }
 
 
@@ -492,97 +456,51 @@ void MyLBRClient::command()
 
     // Calculate the current end-effector's position
     dp_curr = Jp * dq;
+    R_des = R_init * R_data.block< 3, 3 >( 0, 3*N_curr );
 
-    // Set the initial conditions
-    w01   = mjt_w->getPosition( t );
-    p0    = p_init;
-    R_des = R_init * R3_to_SO3( w01 );
-
-    // If over some time, go through the position array
-    if( is_pressed_first && !is_pos_done )
+    // Start the update
+    if( is_pressed )
     {
-        // Position Update
-        if( t_pressed_first >= 3.0 )
+        // Some time offset for each movement
+        if( t_first >= toff )
         {
+            // Update
             if ( n_step % 1 == 0 )
             {
-                N_curr_pos+=3;
+                // The update of N_curr
+                N_curr += sgn * 3;
             }
 
-            if( N_curr_pos > N_pos_shake-1 )
+            if( N_curr > N_data-1 )
             {
-                N_curr_pos = N_pos_shake-1;
-                is_pos_done = true;
+                N_curr = N_data-1;
+                sgn = -1;
+
+                // Initialize t_first
+                t_first = 0.0;
+                toff = 0.3;
             }
-        }
 
-        // Add Orientation
-        if( t_pressed_first >= 33 && !is_pos_done )
-        {
-            N_curr_orient_shake += 2;
-            if( N_curr_orient_shake > N_orient_shake-1 )
+            if( N_curr < 0 )
             {
-                N_curr_orient_shake = 0;
-            }
-        }
+                N_curr = 0;
+                sgn = +1;
 
-    }
-    else if( is_pos_done && !is_pressed_second && ( n_shake <= 10 ) )
-    {
-        std::cout << "Position Movement Done" << std::endl;
-
-        N_curr_orient_shake += 6;
-
-        if( N_curr_orient_shake > N_orient_shake-1 )
-        {
-            N_curr_orient_shake = 0;
-            n_shake++;
-        }
-
-    }
-    else
-    {
-        N_curr_pos = 0;
-        N_curr_orient_shake = 0;
-    }
-
-    p0 += pos_data.col( N_curr_pos );
-    R_des = R_des * R_data_shake.block< 3, 3 >( 0, 3*N_curr_orient_shake );
-
-    // If position done and second button pressed
-    if( is_pos_done && is_pressed_second && !is_pour_done )
-    {
-        if( t_pressed_second >= toff )
-        {
-            N_curr_orient_pour += sgn * 3;
-
-            if( N_curr_orient_pour > N_orient_pour-1 )
-            {
-                N_curr_orient_pour = N_orient_pour-1;
-                sgn = -1.0;
-
-                // Initialize
-                t_pressed_second = 0;
-                toff = 3.0;
-            }
-            else if( N_curr_orient_pour < 0 )
-            {
-                N_curr_orient_pour = 0;
-                is_pour_done = true;
+                // Initialize t_first
+                t_first = 0.0;
+                toff = 1.0;
             }
 
         }
-
-        R_des = R_des * R_data_pour.block< 3, 3 >( 0, 3*N_curr_orient_pour );
-
     }
+
 
     // The difference between the two rotation matrices
     R_del   = R_curr.transpose( ) * R_des;
     w_axis = so3_to_R3( SO3_to_so3( R_del ) );
 
-    tau_imp1 = Jp.transpose( ) * ( Kp * ( p0 - p_curr ) + Bp * ( - dp_curr ) );
-    tau_imp2 = Kq_gain * Kq * ( q0_init - q ) + Bq * ( -dq );
+    tau_imp1 = Jp.transpose( ) * ( Kp * ( p_init - p_curr ) + Bp * ( - dp_curr ) );
+    tau_imp2 = Kq * ( q0_init - q ) + Bq * ( -dq );
     tau_imp3 = Jr.transpose( ) * ( 70 * R_curr * w_axis - 5 * Jr * dq );
 
     // Superposition of Mechanical Impedances
@@ -623,37 +541,38 @@ void MyLBRClient::command()
         tau_pprev = tau_prev;
     }
 
-    // First Button Pressed
-    if ( robotState().getBooleanIOValue( "MediaFlange.UserButton" ) && !is_pressed_first && !is_pressed_second )
-    {
-        is_pressed_first = true;
-        t_pressed_first = 0.0;
 
-        std::cout << "Button Pressed First!" << std::endl;
+    // If the counter reaches the threshold, print to console
+    if (  ( n_step % 5 ) == 0 && is_pressed )
+    {
+        f << "Time: " << std::fixed << std::setw( 5 ) << t;
+        f << " Joint Angle " << q.transpose( ).format( fmt ) ;
+        f << std::endl;
+
+        end = std::chrono::steady_clock::now( );
+
+        std::cout << "Elapsed time for The Torque `Calculation "
+                  << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
+                  << " us" << std::endl;
+        n_step = 0;
     }
 
-    // Second Button Pressed
-    if ( robotState().getBooleanIOValue( "MediaFlange.UserButton" ) && is_pressed_first && is_pos_done && !is_pressed_second )
+    // Check if button Pressed for the First Time
+    if( robotState().getBooleanIOValue( "MediaFlange.UserButton" ) && !is_pressed )
     {
-        is_pressed_second = true;
-        t_pressed_second = 0.0;
+        is_pressed = true;
 
-        std::cout << "Button Pressed Second!" << std::endl;
+        // Turn on imitation learning
+        std::cout << "Button Pressed!" << std::endl;
     }
 
     // Add the sample time to the current time
     t += ts;
     n_step++;
 
-    if( is_pressed_first )
+    if( is_pressed )
     {
-        t_pressed_first += ts;
+        t_first += ts;
     }
-
-    if( is_pressed_second )
-    {
-        t_pressed_second += ts;
-    }
-
 
 }

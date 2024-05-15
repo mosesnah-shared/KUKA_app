@@ -43,7 +43,6 @@ or otherwise, without the prior written consent of KUKA Roboter GmbH.
 #include <chrono>
 #include "friLBRClient.h"
 #include "exp_robots.h"
-#include "exp_trajs.h"
 
 
 using namespace KUKA::FRI;
@@ -116,6 +115,7 @@ private:
     // Time parameters for control loop
     double ts;
     double t;
+    double t_first;
 
     // The number of time steps for the simulation
     int n_step;
@@ -161,9 +161,10 @@ private:
 
     int N_data;
     int N_curr;
+    int sgn;
+    double toff;
 
     bool is_pressed;
-    bool is_pos_done;
 
     std::chrono::steady_clock::time_point start;
     std::chrono::steady_clock::time_point end;
