@@ -285,7 +285,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     Kp = 600 * Eigen::MatrixXd::Identity( 3, 3 );
     Bp =  40 * Eigen::MatrixXd::Identity( 3, 3 );
 
-    Kq = 1.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
+    Kq = 4.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
     Bq = 4.5 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
 
     // Initial print
@@ -543,9 +543,9 @@ void MyLBRClient::command()
 
         end = std::chrono::steady_clock::now( );
 
-        std::cout << "Elapsed time for The Torque Calculation "
-                  << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
-                  << " us" << std::endl;
+        //        std::cout << "Elapsed time for The Torque Calculation "
+        //                  << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
+        //                  << " us" << std::endl;
         n_step = 0;
     }
 

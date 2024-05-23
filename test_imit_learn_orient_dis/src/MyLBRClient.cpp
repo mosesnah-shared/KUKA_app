@@ -294,7 +294,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     printf( "The current script runs Task-space Impedance Control, Orientation, Discrete \n" );
 
     // Read the Data
-    R_data = readCSV( "/home/baxterplayground/Documents/DMPModular/data/csv/pour_2p0scl.csv" );
+    R_data = readCSV( "/home/baxterplayground/Documents/DMPModular/data/csv/pour_1p0scl.csv" );
 
     // Number of data points, and its current number
     N_data = R_data.cols( )/3;

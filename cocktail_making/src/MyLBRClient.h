@@ -185,7 +185,7 @@ private:
     bool is_pour_done;
 
     int n_shake;
-
+    int nn_step;
     int sgn;
     double toff;
 

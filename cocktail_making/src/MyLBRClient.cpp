@@ -276,6 +276,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     tau_imp2   = Eigen::VectorXd::Zero( myLBR->nq );    // Orientation Task-space  Impedance Control
     tau_imp3   = Eigen::VectorXd::Zero( myLBR->nq );    //             Joint-space Impedance Control
 
+    nn_step = 1;
 
     // For the Task-space impedance control, the Forward Kinematics (H) and Hybrid Jacobian Matrix (JH) is Required
     H  = Eigen::Matrix4d::Zero( 4, 4 );
@@ -504,7 +505,7 @@ void MyLBRClient::command()
         // Position Update
         if( t_pressed_first >= 3.0 )
         {
-            if ( n_step % 1 == 0 )
+            if ( n_step % nn_step == 0 )
             {
                 N_curr_pos+=3;
             }
@@ -517,17 +518,18 @@ void MyLBRClient::command()
         }
 
         // Add Orientation
-        if( t_pressed_first >= 33 && !is_pos_done )
+        if( t_pressed_first >= 23 && !is_pos_done )
         {
-            N_curr_orient_shake += 2;
+            N_curr_orient_shake += 4;
             if( N_curr_orient_shake > N_orient_shake-1 )
             {
                 N_curr_orient_shake = 0;
             }
+            nn_step = 2;
         }
 
     }
-    else if( is_pos_done && !is_pressed_second && ( n_shake <= 10 ) )
+    else if( is_pos_done && !is_pressed_second && ( n_shake <= 7 ) )
     {
         std::cout << "Position Movement Done" << std::endl;
 
@@ -554,21 +556,24 @@ void MyLBRClient::command()
     {
         if( t_pressed_second >= toff )
         {
-            N_curr_orient_pour += sgn * 3;
-
-            if( N_curr_orient_pour > N_orient_pour-1 )
+            if ( n_step % 2 == 0 )
             {
-                N_curr_orient_pour = N_orient_pour-1;
-                sgn = -1.0;
+                N_curr_orient_pour += sgn * 2;
 
-                // Initialize
-                t_pressed_second = 0;
-                toff = 3.0;
-            }
-            else if( N_curr_orient_pour < 0 )
-            {
-                N_curr_orient_pour = 0;
-                is_pour_done = true;
+                if( N_curr_orient_pour > N_orient_pour-1 )
+                {
+                    N_curr_orient_pour = N_orient_pour-1;
+                    sgn = -1.0;
+
+                    // Initialize
+                    t_pressed_second = 0;
+                    toff = 3.0;
+                }
+                else if( N_curr_orient_pour < 0 )
+                {
+                    N_curr_orient_pour = 0;
+                    is_pour_done = true;
+                }
             }
 
         }
