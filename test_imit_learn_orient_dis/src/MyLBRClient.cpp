@@ -214,7 +214,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     q_init[6] =  0.000 * M_PI/180;
 
     // Use Explicit-cpp to create your robot
-    myLBR = new iiwa14( 1, "Dwight", Eigen::Vector3d( 0.0, 0.0, 0.15 ) );
+    myLBR = new iiwa14( 1, "Dwight", Eigen::Vector3d( 0.0, 0.0, 0.0 ) );
 
     // Initialization must be called!!
     myLBR->init( );
@@ -245,8 +245,11 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     }
 
     // Once Initialized, get the initial end-effector position
+    // The end-effector is with offset, define
+    offset = Eigen::Vector3d( 0.0, 0.15, 0.1 );
+
     // Forward Kinematics and the current position
-    H = myLBR->getForwardKinematics( q );
+    H = myLBR->getForwardKinematics( q, 7, offset );
     p_init  = H.block< 3, 1 >( 0, 3 );
     R_init  = H.block< 3, 3 >( 0, 0 );
 
@@ -451,13 +454,13 @@ void MyLBRClient::command()
     // ************************************************************ //
 
     start = std::chrono::steady_clock::now( );
-    H = myLBR->getForwardKinematics( q );
+    H = myLBR->getForwardKinematics( q, 7, offset );
     p_curr = H.block< 3, 1 >( 0, 3 );
     R_curr = H.block< 3, 3 >( 0, 0 );
 
     // Get the current end-effector velocity
     // Hybrid Jacobian Matrix (6x7) and its linear velocity part (3x7)
-    J  = myLBR->getHybridJacobian( q );
+    J  = myLBR->getHybridJacobian( q, offset );
 
     Jp = J.block( 0, 0, 3, myLBR->nq );
     Jr = J.block( 3, 0, 3, myLBR->nq );

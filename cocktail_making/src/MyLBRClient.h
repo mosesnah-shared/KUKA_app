@@ -145,6 +145,7 @@ private:
 
     // DECLARE VARIABLES FOR YOUR CONTROLLER HERE!!!
     Eigen::Matrix4d H;
+    Eigen::Matrix4d Hfix;
     Eigen::MatrixXd J;
     Eigen::MatrixXd Jp;     // The position Jacobian
     Eigen::MatrixXd Jr;     // The rotation Jacobian
@@ -160,6 +161,13 @@ private:
     Eigen::Matrix3d R_init_des;
 
     MinimumJerkTrajectory *mjt_w;
+    MinimumJerkTrajectory *mjt_p;
+
+    // Offset for Pouring
+    Eigen::Vector3d offset1;
+    Eigen::Vector3d offset2;
+    Eigen::Vector3d p0_fix;
+
 
     // Data from Imitation Learning
     Eigen::MatrixXd pos_data;
@@ -178,11 +186,13 @@ private:
 
     double t_pressed_first;
     double t_pressed_second;
+    double t_pressed_second_p;
 
     bool is_pressed_first;
     bool is_pressed_second;
     bool is_pos_done;
     bool is_pour_done;
+    bool is_fix_pose;
 
     int n_shake;
     int nn_step;

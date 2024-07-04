@@ -164,6 +164,14 @@ private:
     Eigen::Vector3d w_axis;
     Eigen::Vector3d wdel;
 
+    // The control of different point of the robot
+    Eigen::Vector3d  offset;
+    Eigen::Vector3d  p_off;
+    Eigen::Matrix4d  H_off;
+    Eigen::MatrixXd Jp_off;
+    Eigen::MatrixXd  J_off;
+
+
     int N_data;
     int N_curr;
     int sgn;
