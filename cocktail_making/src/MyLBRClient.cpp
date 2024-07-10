@@ -249,7 +249,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     // Once Initialized, get the initial end-effector position
     // Forward Kinematics and the current position
     offset1 = Eigen::Vector3d( 0.0, 0.00, 0.00 );
-    offset2 = Eigen::Vector3d( 0.0, 0.15, 0.10 );
+    offset2 = Eigen::Vector3d( 0.0, 0.10, 0.10 );
 
     H = myLBR->getForwardKinematics( q, 7, offset1 );
 
@@ -283,11 +283,12 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     nn_step = 1;
 
     // For the Task-space impedance control, the Forward Kinematics (H) and Hybrid Jacobian Matrix (JH) is Required
-    H  = Eigen::Matrix4d::Zero( 4, 4 );
-    Hfix = Eigen::Matrix4d::Zero( 4, 4 );
-    J  = Eigen::MatrixXd::Zero( 6, myLBR->nq );
-    Jp = Eigen::MatrixXd::Zero( 3, myLBR->nq );
-    Jr = Eigen::MatrixXd::Zero( 3, myLBR->nq );
+    H     = Eigen::Matrix4d::Zero( 4, 4 );
+    H_2nd = Eigen::Matrix4d::Zero( 4, 4 );
+    Hfix  = Eigen::Matrix4d::Zero( 4, 4 );
+    J     = Eigen::MatrixXd::Zero( 6, myLBR->nq );
+    Jp    = Eigen::MatrixXd::Zero( 3, myLBR->nq );
+    Jr    = Eigen::MatrixXd::Zero( 3, myLBR->nq );
 
     // The stiffness/damping matrices
     Kp = 600 * Eigen::MatrixXd::Identity( 3, 3 );
@@ -296,6 +297,17 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     Kq = 3.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
     Bq = 4.5 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
     Kq_gain = 1.0;
+
+    // The gain of the both position modules
+    Kp_gain1 = 1.0;
+    Kp_gain2 = 0.0;
+
+    // The Jacobian matrices
+    J_2nd  = Eigen::MatrixXd::Zero( 6, myLBR->nq );
+    Jp_2nd = Eigen::MatrixXd::Zero( 3, myLBR->nq );
+    p0_2nd = Eigen::Vector3d::Zero( 3 );
+    p_curr_2nd  = Eigen::Vector3d::Zero( 3 );
+    dp_curr_2nd = Eigen::Vector3d::Zero( 3 );
 
     // Initial print
     printf( "Exp[licit](c)-cpp-FRI, https://explicit-robotics.github.io \n\n" );
@@ -325,21 +337,23 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     sgn  = 1.0;
     toff = 3.0;
 
-    mjt_p  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  Eigen::Vector3d( 0.30, 0.15, -0.50 ), 3.0, toff );
+    mjt_p  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  Eigen::Vector3d( 0.15, 0.10, -0.42 ), 3.0, 2.0 );
 
     std::cout << "Matrix size: " << pos_data.rows() << " rows x " << pos_data.cols() << " columns" << std::endl;
     std::cout << "Data Length for Orientation, Rhythmic: " << N_orient_shake << std::endl;
     std::cout << "Data Length for Orientation, Pouring:  " << N_orient_pour  << std::endl;
 
-    is_pos_done  = false;
-    is_pour_done = false;
-    is_fix_pose  = false;
+    is_pos_done   = false;
+    is_pour_done  = false;
+    is_shake_done = false;
+    is_fix_pose   = false;
 
     is_pressed_first  = false;
     is_pressed_second = false;
 
     n_shake = 0;
 
+    t_shake_done = 0.0;
 }
 
 
@@ -470,8 +484,8 @@ void MyLBRClient::command()
 
     // ************************************************************
     // Get robot measurements
-    memcpy( q_old, q_curr, 7*sizeof( double ) );
-    memcpy( q_curr, robotState( ).getMeasuredJointPosition( ), 7*sizeof(double) );
+    memcpy(  q_old, q_curr, 7*sizeof( double ) );
+    memcpy( q_curr, robotState( ).getMeasuredJointPosition( ), 7*sizeof( double ) );
 
     for (int i=0; i < myLBR->nq; i++)
     {
@@ -497,7 +511,13 @@ void MyLBRClient::command()
     J  = myLBR->getHybridJacobian( q, offset1 );
     Jp = J.block( 0, 0, 3, myLBR->nq );
     Jr = J.block( 3, 0, 3, myLBR->nq );
-\
+
+    // For the 2nd-module
+    J_2nd  = myLBR->getHybridJacobian( q, offset2 );
+    Jp_2nd = J_2nd.block( 0, 0, 3, myLBR->nq );
+    H_2nd  = myLBR->getForwardKinematics( q, 7, offset2 );
+    p_curr_2nd = H_2nd.block< 3, 1 >( 0, 3 );
+
     // Set the initial conditions
     w01   = mjt_w->getPosition( t );
     p0    = p_init;
@@ -535,8 +555,6 @@ void MyLBRClient::command()
     }
     else if( is_pos_done && !is_pressed_second && ( n_shake <= 2 ) )
     {
-        std::cout << "Position Movement Done" << std::endl;
-
         N_curr_orient_shake += 6;
 
         if( N_curr_orient_shake > N_orient_shake-1 )
@@ -546,33 +564,57 @@ void MyLBRClient::command()
         }
 
     }
+    // The n_shake number above and below must be the same
+    else if( is_pos_done && !is_pressed_second && ( n_shake > 2 ) )
+    {
+        is_shake_done = true;
+    }
     else
     {
         N_curr_pos = 0;
         N_curr_orient_shake = 0;
     }
 
-    p0 += pos_data.col( N_curr_pos ) + mjt_p->getPosition( t_pressed_second_p );
+    // Control the end-effector
+    p0 += pos_data.col( N_curr_pos );
+
+    if( is_pressed_first && is_shake_done )
+    {
+        Kq_gain -= 0.01;
+        if( Kq_gain < 0.0 )
+        {
+            Kq_gain = 0.0;
+        }
+        p0 += mjt_p->getPosition( t_shake_done );
+    }
 
     // If t_pressed_second_p is done, then ready to pour
-    // Fix the end-effector position
-    if( t_pressed_second_p >= 7.0 && !is_fix_pose )
+    // Save the position that will be used to fix the end-effector position
+    if( t_pressed_second_p > 1.0 && !is_fix_pose )
     {
         Hfix = myLBR->getForwardKinematics( q, 7, offset2 );
-        p0_fix = Hfix.block< 3, 1 >( 0, 3 );
+        p0_2nd = Hfix.block< 3, 1 >( 0, 3 );
         is_fix_pose = true;
+
     }
     if( is_fix_pose )
     {
-        p0 = p0_fix;
-        Hfix = myLBR->getForwardKinematics( q, 7, offset2 );
-        p_curr = Hfix.block< 3, 1 >( 0, 3 );
-        J  = myLBR->getHybridJacobian( q, offset2 );
-        Jp = J.block( 0, 0, 3, myLBR->nq );
+        Kp_gain1 -= 0.002;
+        Kp_gain2 += 0.002;
+
+        if( Kp_gain1 < 0 )
+        {
+            Kp_gain1 = 0.0;
+        }
+        if( Kp_gain2 > 1.0  )
+        {
+            Kp_gain2 = 1.0;
+        }
     }
 
     // Calculate the current end-effector's position
-    dp_curr = Jp * dq;
+    dp_curr     =     Jp * dq;
+    dp_curr_2nd = Jp_2nd * dq;
 
     // Control for orientation
     R_des = R_des * R_data_shake.block< 3, 3 >( 0, 3*N_curr_orient_shake );
@@ -580,7 +622,7 @@ void MyLBRClient::command()
     // If position done and second button pressed
     if( is_pos_done && is_pressed_second && !is_pour_done )
     {
-        if( t_pressed_second >= 2*toff + 1 )
+        if( t_pressed_second >= 3 )
         {
             if ( n_step % 2 == 0 )
             {
@@ -614,11 +656,15 @@ void MyLBRClient::command()
     w_axis = so3_to_R3( SO3_to_so3( R_del ) );
 
     tau_imp1 = Jp.transpose( ) * ( Kp * ( p0 - p_curr ) + Bp * ( - dp_curr ) );
+
     tau_imp2 = Kq_gain * Kq * ( q0_init - q ) + Bq * ( -dq );
     tau_imp3 = Jr.transpose( ) * ( 70 * R_curr * w_axis - 5 * Jr * dq );
 
+    // The 2nd module
+    tau_imp4 = Jp_2nd.transpose( ) * ( Kp * ( p0_2nd - p_curr_2nd ) + Bp * ( - dp_curr_2nd ) );
+
     // Superposition of Mechanical Impedances
-    tau_ctrl = tau_imp1 + tau_imp2 + tau_imp3;
+    tau_ctrl = Kp_gain1 * tau_imp1 + tau_imp2 + tau_imp3 + Kp_gain2 * tau_imp4;
 
     // ************************************************************ //
     // ********************* CONTROLLER ENDS ********************* //
@@ -681,6 +727,10 @@ void MyLBRClient::command()
     if( is_pressed_first )
     {
         t_pressed_first += ts;
+    }
+    if( is_shake_done )
+    {
+        t_shake_done += ts;
     }
 
     if( is_pressed_second )

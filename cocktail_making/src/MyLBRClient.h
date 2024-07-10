@@ -140,6 +140,7 @@ private:
     Eigen::VectorXd tau_imp1;
     Eigen::VectorXd tau_imp2;
     Eigen::VectorXd tau_imp3;
+    Eigen::VectorXd tau_imp4;
     Eigen::VectorXd tau_pprev;
     Eigen::VectorXd tau_total;
 
@@ -148,6 +149,19 @@ private:
     Eigen::Matrix4d Hfix;
     Eigen::MatrixXd J;
     Eigen::MatrixXd Jp;     // The position Jacobian
+
+    // The kinematics of the 2nd position
+    Eigen::Matrix4d H_2nd;
+    Eigen::MatrixXd J_2nd;
+    Eigen::MatrixXd Jp_2nd;
+    Eigen::Vector3d p0_2nd;
+    Eigen::Vector3d p_curr_2nd;
+    Eigen::Vector3d dp_curr_2nd;
+
+    // Torque gain
+    double Kp_gain1;
+    double Kp_gain2;
+
     Eigen::MatrixXd Jr;     // The rotation Jacobian
     Eigen::Matrix3d Kp;     // Task-space stiffness, position
     Eigen::Matrix3d Bp;     // Task-space damping, position
@@ -184,6 +198,7 @@ private:
     int N_curr_orient_shake;
     int N_curr_orient_pour;
 
+    double t_shake_done;
     double t_pressed_first;
     double t_pressed_second;
     double t_pressed_second_p;
@@ -191,6 +206,7 @@ private:
     bool is_pressed_first;
     bool is_pressed_second;
     bool is_pos_done;
+    bool is_shake_done;
     bool is_pour_done;
     bool is_fix_pose;
 
