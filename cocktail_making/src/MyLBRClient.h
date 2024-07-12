@@ -122,6 +122,8 @@ private:
     Eigen::Vector3d  p_init;
     Eigen::Vector3d dp_curr;
 
+    Eigen::Vector3d  p_pour;
+
     // The virtual task-space trajectory, position.
     Eigen::Vector3d p0;
     Eigen::Vector3d w01;
@@ -175,7 +177,9 @@ private:
     Eigen::Matrix3d R_init_des;
 
     MinimumJerkTrajectory *mjt_w;
-    MinimumJerkTrajectory *mjt_p;
+    MinimumJerkTrajectory *mjt_p1;
+    MinimumJerkTrajectory *mjt_p2;
+    MinimumJerkTrajectory *mjt_w1;
 
     // Offset for Pouring
     Eigen::Vector3d offset1;
@@ -198,6 +202,7 @@ private:
     int N_curr_orient_shake;
     int N_curr_orient_pour;
 
+    double t_pour_done;
     double t_shake_done;
     double t_pressed_first;
     double t_pressed_second;

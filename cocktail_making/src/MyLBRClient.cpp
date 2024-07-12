@@ -249,7 +249,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     // Once Initialized, get the initial end-effector position
     // Forward Kinematics and the current position
     offset1 = Eigen::Vector3d( 0.0, 0.00, 0.00 );
-    offset2 = Eigen::Vector3d( 0.0, 0.10, 0.10 );
+    offset2 = Eigen::Vector3d( -0.08, 0.06, 0.13 );
 
     H = myLBR->getForwardKinematics( q, 7, offset1 );
 
@@ -329,6 +329,8 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     N_orient_shake = R_data_shake.cols( )/3;
     N_orient_pour  =  R_data_pour.cols( )/3;
 
+    // Pour 2nd Option is simply using minimum-jerk trajectory
+
     N_curr_pos          = 0;
     N_curr_orient_shake = 0;
     N_curr_orient_pour  = 0;
@@ -337,7 +339,9 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     sgn  = 1.0;
     toff = 3.0;
 
-    mjt_p  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  Eigen::Vector3d( 0.15, 0.10, -0.42 ), 3.0, 2.0 );
+    p_pour = Eigen::Vector3d( 0.15, 0.0, -0.38 );
+    mjt_p1 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  p_pour, 3.0, 2.0 );
+    mjt_p2 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), -p_pour, 3.0, 2.0 );
 
     std::cout << "Matrix size: " << pos_data.rows() << " rows x " << pos_data.cols() << " columns" << std::endl;
     std::cout << "Data Length for Orientation, Rhythmic: " << N_orient_shake << std::endl;
@@ -353,7 +357,9 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
 
     n_shake = 0;
 
+    t_pour_done  = 0.0;
     t_shake_done = 0.0;
+
 }
 
 
@@ -585,12 +591,12 @@ void MyLBRClient::command()
         {
             Kq_gain = 0.0;
         }
-        p0 += mjt_p->getPosition( t_shake_done );
+        p0 += mjt_p1->getPosition( t_shake_done );
     }
 
     // If t_pressed_second_p is done, then ready to pour
     // Save the position that will be used to fix the end-effector position
-    if( t_pressed_second_p > 1.0 && !is_fix_pose )
+    if( t_pressed_second_p > 1.0 && !is_fix_pose && !is_pour_done )
     {
         Hfix = myLBR->getForwardKinematics( q, 7, offset2 );
         p0_2nd = Hfix.block< 3, 1 >( 0, 3 );
@@ -642,6 +648,7 @@ void MyLBRClient::command()
                 {
                     N_curr_orient_pour = 0;
                     is_pour_done = true;
+                    is_fix_pose = false;
                 }
             }
 
@@ -649,6 +656,32 @@ void MyLBRClient::command()
 
         R_des = R_des * R_data_pour.block< 3, 3 >( 0, 3*N_curr_orient_pour );
 
+    }
+
+    if( is_pos_done && is_pressed_second && is_pour_done )
+    {
+        Kp_gain2 -= 0.002;
+        Kp_gain1 += 0.002;
+
+        if( Kp_gain2 < 0 )
+        {
+            Kp_gain2 = 0.0;
+        }
+        if( Kp_gain1 > 1.0  )
+        {
+            Kp_gain1 = 1.0;
+        }
+
+        p0 += mjt_p2->getPosition( t_pour_done );
+
+        if( t_pour_done >= 2.0 )
+        {
+            Kq_gain += 0.05;
+            if( Kq_gain > 1.0 )
+            {
+                Kq_gain = 1.0;
+            }
+        }
     }
 
     // The difference between the two rotation matrices
@@ -737,6 +770,11 @@ void MyLBRClient::command()
     {
         t_pressed_second += ts;
         t_pressed_second_p += ts;
+    }
+
+    if( is_pour_done )
+    {
+        t_pour_done += ts;
     }
 
 
