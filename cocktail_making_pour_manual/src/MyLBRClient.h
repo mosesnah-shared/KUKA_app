@@ -128,6 +128,11 @@ private:
     Eigen::Vector3d p0;
     Eigen::Vector3d w01;
 
+    Eigen::Vector3d w_ready;
+    Eigen::Vector3d w_pour1;
+    Eigen::Vector3d w_pour2;
+    Eigen::Vector3d w_done;
+
     Eigen::Vector3d dp0;
 
     // Current position and velocity as Eigen vector
@@ -179,6 +184,11 @@ private:
     MinimumJerkTrajectory *mjt_w;
     MinimumJerkTrajectory *mjt_p1;
     MinimumJerkTrajectory *mjt_p2;
+
+    MinimumJerkTrajectory *mjt_w0;
+    MinimumJerkTrajectory *mjt_w1;
+    MinimumJerkTrajectory *mjt_w2;
+    MinimumJerkTrajectory *mjt_w3;
 
     // Offset for Pouring
     Eigen::Vector3d offset1;
