@@ -334,15 +334,15 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     sgn  = 1.0;
     toff = 3.0;
 
-    p_pour = Eigen::Vector3d( 0.15, 0.10, -0.34 );
+    p_pour = Eigen::Vector3d( 0.15, 0.10, -0.31 );
     mjt_p1 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  p_pour, 3.0, 2.0 );
     mjt_p2 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), -p_pour, 3.0, 3.0 );
 
     // Another movement before the pour
     mjt_w0 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), Eigen::Vector3d( 0.0, 0.0, -0.9 ), 3.0, 2.0 );
-    mjt_w1 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), Eigen::Vector3d( 0.0, 0.0, -1.1 ), 4.5, 2.0 );
-    mjt_w2 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), Eigen::Vector3d( 0.0, 0.0,  1.4 ), 4.5, 7.0 );
-    mjt_w3 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), Eigen::Vector3d( 0.0, 0.0,  0.6 ), 3.0, 3.0 );
+    mjt_w1 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), Eigen::Vector3d( 0.0, 0.0, -1.2 ), 4.5, 2.0 );
+    mjt_w2 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), Eigen::Vector3d( 0.0, 0.0,  0.8 ), 4.5, 7.0 );
+    mjt_w3 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), Eigen::Vector3d( 0.0, 0.0,  1.3 ), 3.0, 3.0 );
 
     std::cout << "Matrix size: " << pos_data.rows() << " rows x " << pos_data.cols() << " columns" << std::endl;
     std::cout << "Data Length for Orientation, Rhythmic: " << N_orient_shake << std::endl;
@@ -532,61 +532,58 @@ void MyLBRClient::command()
     // ============== START ============= //
     // Comment these out for full routine!
     // If over some time, go through the position array
-//    if( is_pressed_first && !is_pos_done )
-//    {
-//        // Position Update
-//        if( t_pressed_first >= 3.0 )
-//        {
-//            if ( n_step % nn_step == 0 )
-//            {
-//                N_curr_pos+=3;
-//            }
+    if( is_pressed_first && !is_pos_done )
+    {
+        // Position Update
+        if( t_pressed_first >= 3.0 )
+        {
+            if ( n_step % nn_step == 0 )
+            {
+                N_curr_pos+=3;
+            }
 
-//            if( N_curr_pos > N_pos_shake-1 )
-//            {
-//                N_curr_pos = N_pos_shake-1;
-//                is_pos_done = true;
-//            }
-//        }
+            if( N_curr_pos > N_pos_shake-1 )
+            {
+                N_curr_pos = N_pos_shake-1;
+                is_pos_done = true;
+            }
+        }
 
-//        // Add Orientation
-//        if( t_pressed_first >= 23 && !is_pos_done )
-//        {
-//            N_curr_orient_shake += 4;
-//            if( N_curr_orient_shake > N_orient_shake-1 )
-//            {
-//                N_curr_orient_shake = 0;
-//            }
-//            nn_step = 2;
-//        }
+        // Add Orientation
+        if( t_pressed_first >= 23 && !is_pos_done )
+        {
+            N_curr_orient_shake += 6;
+            if( N_curr_orient_shake > N_orient_shake-1 )
+            {
+                N_curr_orient_shake = 0;
+            }
+            nn_step = 2;
+        }
 
-//    }
-//    else if( is_pos_done && !is_pressed_second && ( n_shake <= 2 ) )
-//    {
-//        N_curr_orient_shake += 6;
+    }
+    else if( is_pos_done && !is_pressed_second && ( n_shake <= 3 ) )
+    {
+        N_curr_orient_shake += 6;
 
-//        if( N_curr_orient_shake > N_orient_shake-1 )
-//        {
-//            N_curr_orient_shake = 0;
-//            n_shake++;
-//        }
+        if( N_curr_orient_shake > N_orient_shake-1 )
+        {
+            N_curr_orient_shake = 0;
+            n_shake++;
+        }
 
-//    }
-//    // The n_shake number above and below must be the same
-//    else if( is_pos_done && !is_pressed_second && ( n_shake > 2 ) )
-//    {
-//        is_shake_done = true;
-//    }
-//    else
-//    {
-//        N_curr_pos = 0;
-//        N_curr_orient_shake = 0;
-//    }
+    }
+    // The n_shake number above and below must be the same
+    else if( is_pos_done && !is_pressed_second && ( n_shake > 2 ) )
+    {
+        is_shake_done = true;
+    }
+    else
+    {
+        N_curr_pos = 0;
+        N_curr_orient_shake = 0;
+    }
     // =============== END ============== //
-    is_pos_done      = true;
-    is_shake_done    = true;
-    is_pressed_first = true;
-    // Comment these out for full routine!
+
 
     // Control the end-effector
     p0 += pos_data.col( N_curr_pos );
@@ -729,13 +726,13 @@ void MyLBRClient::command()
     }
 
     // First Button Pressed
-//    if ( robotState().getBooleanIOValue( "MediaFlange.UserButton" ) && !is_pressed_first && !is_pressed_second )
-//    {
-//        is_pressed_first = true;
-//        t_pressed_first = 0.0;
+    if ( robotState().getBooleanIOValue( "MediaFlange.UserButton" ) && !is_pressed_first && !is_pressed_second )
+    {
+        is_pressed_first = true;
+        t_pressed_first = 0.0;
 
-//        std::cout << "Button Pressed First!" << std::endl;
-//    }
+        std::cout << "Button Pressed First!" << std::endl;
+    }
 
     // Second Button Pressed
     if ( robotState().getBooleanIOValue( "MediaFlange.UserButton" ) && is_pressed_first && is_pos_done && !is_pressed_second )
