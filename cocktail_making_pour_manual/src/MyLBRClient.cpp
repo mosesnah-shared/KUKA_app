@@ -316,9 +316,6 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     printf( "' initialised. Ready to rumble! \n" );
     printf( "The current script runs Task-space Impedance Control, Position\n" );
 
-    // Open a file
-    f.open( "cocktail_data.txt" );
-    fmt = Eigen::IOFormat(5, 0, ", ", "\n", "[", "]");
 
     // Read the Data
     pos_data     = readCSV( "/home/baxterplayground/Documents/DMPModular/data/csv/shake_pos.csv"    );
@@ -359,6 +356,10 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
 
     t_pour_done  = 0.0;
     t_shake_done = 0.0;
+
+    // Open a file
+    f.open( "pour_joint_motions.txt" );
+    fmt = Eigen::IOFormat(5, 0, ", ", "\n", "[", "]");
 
 }
 
@@ -532,58 +533,60 @@ void MyLBRClient::command()
     // ============== START ============= //
     // Comment these out for full routine!
     // If over some time, go through the position array
-    if( is_pressed_first && !is_pos_done )
-    {
-        // Position Update
-        if( t_pressed_first >= 3.0 )
-        {
-            if ( n_step % nn_step == 0 )
-            {
-                N_curr_pos+=3;
-            }
+//    if( is_pressed_first && !is_pos_done )
+//    {
+//        // Position Update
+//        if( t_pressed_first >= 3.0 )
+//        {
+//            if ( n_step % nn_step == 0 )
+//            {
+//                N_curr_pos+=3;
+//            }
 
-            if( N_curr_pos > N_pos_shake-1 )
-            {
-                N_curr_pos = N_pos_shake-1;
-                is_pos_done = true;
-            }
-        }
+//            if( N_curr_pos > N_pos_shake-1 )
+//            {
+//                N_curr_pos = N_pos_shake-1;
+//                is_pos_done = true;
+//            }
+//        }
 
-        // Add Orientation
-        if( t_pressed_first >= 23 && !is_pos_done )
-        {
-            N_curr_orient_shake += 6;
-            if( N_curr_orient_shake > N_orient_shake-1 )
-            {
-                N_curr_orient_shake = 0;
-            }
-            nn_step = 2;
-        }
+//        // Add Orientation
+//        if( t_pressed_first >= 23 && !is_pos_done )
+//        {
+//            N_curr_orient_shake += 6;
+//            if( N_curr_orient_shake > N_orient_shake-1 )
+//            {
+//                N_curr_orient_shake = 0;
+//            }
+//            nn_step = 2;
+//        }
 
-    }
-    else if( is_pos_done && !is_pressed_second && ( n_shake <= 3 ) )
-    {
-        N_curr_orient_shake += 6;
+//    }
+//    else if( is_pos_done && !is_pressed_second && ( n_shake <= 3 ) )
+//    {
+//        N_curr_orient_shake += 6;
 
-        if( N_curr_orient_shake > N_orient_shake-1 )
-        {
-            N_curr_orient_shake = 0;
-            n_shake++;
-        }
+//        if( N_curr_orient_shake > N_orient_shake-1 )
+//        {
+//            N_curr_orient_shake = 0;
+//            n_shake++;
+//        }
 
-    }
-    // The n_shake number above and below must be the same
-    else if( is_pos_done && !is_pressed_second && ( n_shake > 2 ) )
-    {
-        is_shake_done = true;
-    }
-    else
-    {
-        N_curr_pos = 0;
-        N_curr_orient_shake = 0;
-    }
+//    }
+//    // The n_shake number above and below must be the same
+//    else if( is_pos_done && !is_pressed_second && ( n_shake > 2 ) )
+//    {
+//        is_shake_done = true;
+//    }
+//    else
+//    {
+//        N_curr_pos = 0;
+//        N_curr_orient_shake = 0;
+//    }
     // =============== END ============== //
-
+    is_pressed_first = true;
+    is_pos_done   = true;
+    is_shake_done = true;
 
     // Control the end-effector
     p0 += pos_data.col( N_curr_pos );
@@ -725,14 +728,21 @@ void MyLBRClient::command()
         tau_pprev = tau_prev;
     }
 
-    // First Button Pressed
-    if ( robotState().getBooleanIOValue( "MediaFlange.UserButton" ) && !is_pressed_first && !is_pressed_second )
+    if ( n_step % 5 )
     {
-        is_pressed_first = true;
-        t_pressed_first = 0.0;
-
-        std::cout << "Button Pressed First!" << std::endl;
+        f << "Time: " << std::fixed << std::setw( 5 ) << t;
+        f << " Joint Angle " << q.transpose( ).format( fmt ) ;
+        f << std::endl;
     }
+
+    // First Button Pressed
+//    if ( robotState().getBooleanIOValue( "MediaFlange.UserButton" ) && !is_pressed_first && !is_pressed_second )
+//    {
+//        is_pressed_first = true;
+//        t_pressed_first = 0.0;
+
+//        std::cout << "Button Pressed First!" << std::endl;
+//    }
 
     // Second Button Pressed
     if ( robotState().getBooleanIOValue( "MediaFlange.UserButton" ) && is_pressed_first && is_pos_done && !is_pressed_second )
