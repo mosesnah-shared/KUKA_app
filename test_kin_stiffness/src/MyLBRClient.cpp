@@ -50,6 +50,7 @@ or otherwise, without the prior written consent of KUKA Roboter GmbH.
 
 #include "MyLBRClient.h"
 #include "exp_robots.h"
+#include "my_diff_jacobians.h"
 
 using namespace std;
 
@@ -64,58 +65,8 @@ using namespace std;
 static double filterOutput[ 7 ][ NCoef+1 ]; // output samples. Static variables are initialised to 0 by default.
 static double  filterInput[ 7 ][ NCoef+1 ]; //  input samples. Static variables are initialised to 0 by default.
 
-Eigen::MatrixXd readCSV(const string& filename) {
-    ifstream file(filename);
-    if (!file.is_open()) {
-        cerr << "Error: Couldn't open the file: " << filename << endl;
-        exit(1);
-    }
-
-    vector<vector<double>> values;
-
-    string line;
-    int lineNum = 0;
-    int numCols = 0;
-    while (getline(file, line)) {
-        ++lineNum;
-        stringstream ss(line);
-        string cell;
-        vector<double> row;
-        while (getline(ss, cell, ',')) {
-            try {
-                row.push_back(stod(cell));
-            } catch (const std::invalid_argument& e) {
-                cerr << "Error: Invalid argument at line " << lineNum << ", column: " << row.size() + 1 << endl;
-                exit(1);
-            }
-        }
-        values.push_back(row);
-        if (numCols == 0)
-            numCols = row.size();
-        else if (row.size() != numCols) {
-            cerr << "Error: Inconsistent number of columns in the CSV file." << endl;
-            exit(1);
-        }
-    }
-
-    if (values.empty()) {
-        cerr << "Error: CSV file is empty." << endl;
-        exit(1);
-    }
-
-    // Create Eigen Matrix
-    Eigen::MatrixXd mat(values.size(), numCols);
-    for (int i = 0; i < values.size(); ++i) {
-        for (int j = 0; j < numCols; ++j) {
-            mat(i, j) = values[i][j];
-        }
-    }
-
-    return mat;
-}
-
-
-Eigen::Matrix3d R3_to_so3(const Eigen::Vector3d& v) {
+Eigen::Matrix3d R3_to_so3(const Eigen::Vector3d& v)
+{
     Eigen::Matrix3d skewSym;
     skewSym <<  0,      -v(2),  v(1),
                 v(2),   0,     -v(0),
@@ -144,7 +95,6 @@ Eigen::Matrix3d R3_to_SO3(const Eigen::Vector3d& axis_angle) {
 
     return rotation_matrix;
 }
-
 
 
 Eigen::Vector3d so3_to_R3(const Eigen::Matrix3d& skewSym) {
@@ -213,8 +163,10 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     q_init[5] = -37.73 * M_PI/180;
     q_init[6] =  0.000 * M_PI/180;
 
+    offset = Eigen::Vector3d( 0.00, 0.10, 0.15 );
+
     // Use Explicit-cpp to create your robot
-    myLBR = new iiwa14( 1, "Dwight", Eigen::Vector3d( 0.0, 0.0, 0.0 ) );
+    myLBR = new iiwa14( 1, "Dwight", offset );
 
     // Initialization must be called!!
     myLBR->init( );
@@ -246,7 +198,6 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
 
     // Once Initialized, get the initial end-effector position
     // The end-effector is with offset, define
-    offset = Eigen::Vector3d( 0.0, 0.0, 0.0 );
 
     // Forward Kinematics and the current position
     H = myLBR->getForwardKinematics( q, 7, offset );
@@ -262,6 +213,8 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     R_init_des << -0.3177, -0.2450,  0.9160,
                    0.6259,  0.6715,  0.3967,
                   -0.7123,  0.6993, -0.0599;
+
+
 
     Eigen::Vector3d wdel = so3_to_R3( SO3_to_so3( R_init.transpose( ) * R_init_des ) );
     mjt_w  = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ),  wdel, 1.0, 1.0 );
@@ -282,30 +235,24 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     Jp = Eigen::MatrixXd::Zero( 3, myLBR->nq );
     Jr = Eigen::MatrixXd::Zero( 3, myLBR->nq );
 
+    dJH = Eigen::MatrixXd::Zero( 7, 6 );
+
     // The stiffness/damping matrices
-    Kp = 600 * Eigen::MatrixXd::Identity( 3, 3 );
-    Bp =  40 * Eigen::MatrixXd::Identity( 3, 3 );
+    Kp = 200 * Eigen::MatrixXd::Identity( 3, 3 );
+    Bp =  20 * Eigen::MatrixXd::Identity( 3, 3 );
 
     Kq = 6.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
     Bq = 4.5 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
+
+    kr = 50.0;
+    br =  5.0;
 
     // Initial print
     printf( "Exp[licit](c)-cpp-FRI, https://explicit-robotics.github.io \n\n" );
     printf( "Robot '" );
     printf( "%s", myLBR->Name );
     printf( "' initialised. Ready to rumble! \n" );
-    printf( "The current script runs Task-space Impedance Control, Orientation, Discrete \n" );
-
-    // Read the Data
-    R_data = readCSV( "/home/baxterplayground/Documents/DMPModular/data/csv/pour_1p0scl.csv" );
-
-    // Number of data points, and its current number
-    N_data = R_data.cols( )/3;
-    N_curr = 0;
-    sgn = +1;
-    toff = 2.0;
-
-    is_pressed = false;
+    printf( "The current script maintains the current orientation with type1, orientation \n" );
 }
 
 
@@ -469,44 +416,7 @@ void MyLBRClient::command()
     dp_curr = Jp * dq;
 
     w01   = mjt_w->getPosition( t );
-    R_des = R_init * R3_to_SO3( w01 ) * R_data.block< 3, 3 >( 0, 3*N_curr );
-
-    // Start the update
-    if( is_pressed )
-    {
-        // Some time offset for each movement
-        if( t_first >= toff )
-        {
-            // Update
-            if ( n_step % 1 == 0 )
-            {
-                // The update of N_curr
-                N_curr += sgn * 3;
-            }
-
-            if( N_curr > N_data-1 )
-            {
-                N_curr = N_data-1;
-                sgn = -1;
-
-                // Initialize t_first
-                t_first = 0.0;
-                toff = 0.3;
-            }
-
-            if( N_curr < 0 )
-            {
-                N_curr = 0;
-                sgn = +1;
-
-                // Initialize t_first
-                t_first = 0.0;
-                toff = 1.0;
-            }
-
-        }
-    }
-
+    R_des = R_init * R3_to_SO3( w01 );
 
     // The difference between the two rotation matrices
     R_del   = R_curr.transpose( ) * R_des;
@@ -514,7 +424,14 @@ void MyLBRClient::command()
 
     tau_imp1 = Jp.transpose( ) * ( Kp * ( p_init - p_curr ) + Bp * ( - dp_curr ) );
     tau_imp2 = Kq * ( q0_init - q ) + Bq * ( -dq );
-    tau_imp3 = Jr.transpose( ) * ( 70 * R_curr * w_axis - 5 * Jr * dq );
+    tau_imp3 = Jr.transpose( ) * ( kr * R_curr * w_axis - br * Jr * dq );
+
+    start2 = std::chrono::steady_clock::now( );
+    dJH = dJH_T_dq1( q[ 0 ], q[ 1 ], q[ 2 ], q[ 3 ], q[ 4 ], q[ 5 ], q[ 6 ] );
+    std::cout << dJH << std::endl;
+
+    end2 = std::chrono::steady_clock::now( );
+    std::cout << "Time for Calculation: " << std::chrono::duration_cast<std::chrono::microseconds>(end2 - start2).count() << " us" << std::endl;
 
     // Superposition of Mechanical Impedances
     tau_ctrl = tau_imp1 + tau_imp2 + tau_imp3;
@@ -554,38 +471,9 @@ void MyLBRClient::command()
         tau_pprev = tau_prev;
     }
 
-
-    // If the counter reaches the threshold, print to console
-    if (  ( n_step % 5 ) == 0 && is_pressed )
-    {
-        f << "Time: " << std::fixed << std::setw( 5 ) << t;
-        f << " Joint Angle " << q.transpose( ).format( fmt ) ;
-        f << std::endl;
-
-        end = std::chrono::steady_clock::now( );
-
-        std::cout << "Elapsed time for The Torque `Calculation "
-                  << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
-                  << " us" << std::endl;
-        n_step = 0;
-    }
-
-    // Check if button Pressed for the First Time
-    if( robotState().getBooleanIOValue( "MediaFlange.UserButton" ) && !is_pressed )
-    {
-        is_pressed = true;
-
-        // Turn on imitation learning
-        std::cout << "Button Pressed!" << std::endl;
-    }
-
     // Add the sample time to the current time
     t += ts;
     n_step++;
 
-    if( is_pressed )
-    {
-        t_first += ts;
-    }
 
 }

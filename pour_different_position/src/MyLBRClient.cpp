@@ -226,10 +226,10 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     q0_init = Eigen::VectorXd::Zero( myLBR->nq );
 
     // Time variables for control loop
-    t       = 0.0;     // The current Time
-    ts      = 0.0;     // The  sample Time
-    t_first = 0.0;     // The time after first pressed
-    n_step  = 0.0;     // The number of time steps, integer
+    t         = 0.0;     // The current Time
+    ts        = 0.0;     // The  sample Time
+    t_pressed = 0.0;     // The time after first pressed
+    n_step    = 0.0;     // The number of time steps, integer
 
     // Initialize joint torques and joint positions (also needed for waitForCommand()!)
     for( int i=0; i < myLBR->nq; i++ )
@@ -246,7 +246,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
 
     // Once Initialized, get the initial end-effector position
     // The end-effector is with offset, define
-    offset = Eigen::Vector3d( 0.0, 0.0, 0.0 );
+    offset = Eigen::Vector3d( -0.04, 0.07, 0.13 );
 
     // Forward Kinematics and the current position
     H = myLBR->getForwardKinematics( q, 7, offset );
@@ -286,6 +286,16 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     Kp = 600 * Eigen::MatrixXd::Identity( 3, 3 );
     Bp =  40 * Eigen::MatrixXd::Identity( 3, 3 );
 
+    // The pouring and lifting movements
+    D1 = 1.5;
+    D2 = 1.5;
+
+    toff1 = 2.0;
+    toff2 = D1 + toff1 + 1.0;
+
+    mjt_w1 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), Eigen::Vector3d( 0.0, 0.0, -1.6 ), D1, toff1 );
+    mjt_w2 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), Eigen::Vector3d( 0.0, 0.0, +1.6 ), D2, toff2 );
+
     Kq = 6.0 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
     Bq = 4.5 * Eigen::MatrixXd::Identity( myLBR->nq, myLBR->nq );
 
@@ -295,15 +305,6 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     printf( "%s", myLBR->Name );
     printf( "' initialised. Ready to rumble! \n" );
     printf( "The current script runs Task-space Impedance Control, Orientation, Discrete \n" );
-
-    // Read the Data
-    R_data = readCSV( "/home/baxterplayground/Documents/DMPModular/data/csv/pour_1p0scl.csv" );
-
-    // Number of data points, and its current number
-    N_data = R_data.cols( )/3;
-    N_curr = 0;
-    sgn = +1;
-    toff = 2.0;
 
     is_pressed = false;
 }
@@ -469,44 +470,23 @@ void MyLBRClient::command()
     dp_curr = Jp * dq;
 
     w01   = mjt_w->getPosition( t );
-    R_des = R_init * R3_to_SO3( w01 ) * R_data.block< 3, 3 >( 0, 3*N_curr );
+    R_des = R_init * R3_to_SO3( w01 );
 
     // Start the update
     if( is_pressed )
     {
         // Some time offset for each movement
-        if( t_first >= toff )
+        w_move1 = mjt_w1->getPosition( t_pressed );
+        w_move2 = mjt_w2->getPosition( t_pressed );
+
+        R_des = R_des * R3_to_SO3( w_move1 + w_move2 );
+
+        if( t_pressed >= toff2 + 1.5 )
         {
-            // Update
-            if ( n_step % 1 == 0 )
-            {
-                // The update of N_curr
-                N_curr += sgn * 3;
-            }
-
-            if( N_curr > N_data-1 )
-            {
-                N_curr = N_data-1;
-                sgn = -1;
-
-                // Initialize t_first
-                t_first = 0.0;
-                toff = 0.3;
-            }
-
-            if( N_curr < 0 )
-            {
-                N_curr = 0;
-                sgn = +1;
-
-                // Initialize t_first
-                t_first = 0.0;
-                toff = 1.0;
-            }
-
+            t_pressed = 0.0;
         }
-    }
 
+    }
 
     // The difference between the two rotation matrices
     R_del   = R_curr.transpose( ) * R_des;
@@ -555,21 +535,6 @@ void MyLBRClient::command()
     }
 
 
-    // If the counter reaches the threshold, print to console
-    if (  ( n_step % 5 ) == 0 && is_pressed )
-    {
-        f << "Time: " << std::fixed << std::setw( 5 ) << t;
-        f << " Joint Angle " << q.transpose( ).format( fmt ) ;
-        f << std::endl;
-
-        end = std::chrono::steady_clock::now( );
-
-        std::cout << "Elapsed time for The Torque `Calculation "
-                  << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
-                  << " us" << std::endl;
-        n_step = 0;
-    }
-
     // Check if button Pressed for the First Time
     if( robotState().getBooleanIOValue( "MediaFlange.UserButton" ) && !is_pressed )
     {
@@ -585,7 +550,7 @@ void MyLBRClient::command()
 
     if( is_pressed )
     {
-        t_first += ts;
+        t_pressed += ts;
     }
 
 }

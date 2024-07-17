@@ -340,8 +340,8 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
 
     // Another movement before the pour
     mjt_w0 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), Eigen::Vector3d( 0.0, 0.0, -0.9 ), 3.0, 2.0 );
-    mjt_w1 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), Eigen::Vector3d( 0.0, 0.0, -1.2 ), 4.5, 2.0 );
-    mjt_w2 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), Eigen::Vector3d( 0.0, 0.0,  0.8 ), 4.5, 7.0 );
+    mjt_w1 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), Eigen::Vector3d( 0.0, 0.0, -1.2 ), 5.5, 2.0 );
+    mjt_w2 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), Eigen::Vector3d( 0.0, 0.0,  0.8 ), 3.5, 8.5 );
     mjt_w3 = new MinimumJerkTrajectory( 3, Eigen::Vector3d( 0.0, 0.0, 0.0 ), Eigen::Vector3d( 0.0, 0.0,  1.3 ), 3.0, 3.0 );
 
     std::cout << "Matrix size: " << pos_data.rows() << " rows x " << pos_data.cols() << " columns" << std::endl;
@@ -640,7 +640,7 @@ void MyLBRClient::command()
         w_pour2 = mjt_w2->getPosition( t_pressed_second );
 
         // This should be large enough!
-        if( t_pressed_second >= 12.0 )
+        if( t_pressed_second >= 14.0 )
         {
             is_pour_done = true;
         }
