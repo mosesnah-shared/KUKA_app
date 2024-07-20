@@ -533,60 +533,60 @@ void MyLBRClient::command()
     // ============== START ============= //
     // Comment these out for full routine!
     // If over some time, go through the position array
-//    if( is_pressed_first && !is_pos_done )
-//    {
-//        // Position Update
-//        if( t_pressed_first >= 3.0 )
-//        {
-//            if ( n_step % nn_step == 0 )
-//            {
-//                N_curr_pos+=3;
-//            }
+    if( is_pressed_first && !is_pos_done )
+    {
+        // Position Update
+        if( t_pressed_first >= 3.0 )
+        {
+            if ( n_step % nn_step == 0 )
+            {
+                N_curr_pos+=3;
+            }
 
-//            if( N_curr_pos > N_pos_shake-1 )
-//            {
-//                N_curr_pos = N_pos_shake-1;
-//                is_pos_done = true;
-//            }
-//        }
+            if( N_curr_pos > N_pos_shake-1 )
+            {
+                N_curr_pos = N_pos_shake-1;
+                is_pos_done = true;
+            }
+        }
 
-//        // Add Orientation
-//        if( t_pressed_first >= 23 && !is_pos_done )
-//        {
-//            N_curr_orient_shake += 6;
-//            if( N_curr_orient_shake > N_orient_shake-1 )
-//            {
-//                N_curr_orient_shake = 0;
-//            }
-//            nn_step = 2;
-//        }
+        // Add Orientation
+        if( t_pressed_first >= 23 && !is_pos_done )
+        {
+            N_curr_orient_shake += 6;
+            if( N_curr_orient_shake > N_orient_shake-1 )
+            {
+                N_curr_orient_shake = 0;
+            }
+            nn_step = 2;
+        }
 
-//    }
-//    else if( is_pos_done && !is_pressed_second && ( n_shake <= 3 ) )
-//    {
-//        N_curr_orient_shake += 6;
+    }
+    else if( is_pos_done && !is_pressed_second && ( n_shake <= 3 ) )
+    {
+        N_curr_orient_shake += 6;
 
-//        if( N_curr_orient_shake > N_orient_shake-1 )
-//        {
-//            N_curr_orient_shake = 0;
-//            n_shake++;
-//        }
+        if( N_curr_orient_shake > N_orient_shake-1 )
+        {
+            N_curr_orient_shake = 0;
+            n_shake++;
+        }
 
-//    }
-//    // The n_shake number above and below must be the same
-//    else if( is_pos_done && !is_pressed_second && ( n_shake > 2 ) )
-//    {
-//        is_shake_done = true;
-//    }
-//    else
-//    {
-//        N_curr_pos = 0;
-//        N_curr_orient_shake = 0;
-//    }
+    }
+    // The n_shake number above and below must be the same
+    else if( is_pos_done && !is_pressed_second && ( n_shake > 2 ) )
+    {
+        is_shake_done = true;
+    }
+    else
+    {
+        N_curr_pos = 0;
+        N_curr_orient_shake = 0;
+    }
     // =============== END ============== //
-    is_pressed_first = true;
-    is_pos_done   = true;
-    is_shake_done = true;
+//    is_pressed_first = true;
+//    is_pos_done   = true;
+//    is_shake_done = true;
 
     // Control the end-effector
     p0 += pos_data.col( N_curr_pos );
@@ -736,13 +736,13 @@ void MyLBRClient::command()
     }
 
     // First Button Pressed
-//    if ( robotState().getBooleanIOValue( "MediaFlange.UserButton" ) && !is_pressed_first && !is_pressed_second )
-//    {
-//        is_pressed_first = true;
-//        t_pressed_first = 0.0;
+    if ( robotState().getBooleanIOValue( "MediaFlange.UserButton" ) && !is_pressed_first && !is_pressed_second )
+    {
+        is_pressed_first = true;
+        t_pressed_first = 0.0;
 
-//        std::cout << "Button Pressed First!" << std::endl;
-//    }
+        std::cout << "Button Pressed First!" << std::endl;
+    }
 
     // Second Button Pressed
     if ( robotState().getBooleanIOValue( "MediaFlange.UserButton" ) && is_pressed_first && is_pos_done && !is_pressed_second )

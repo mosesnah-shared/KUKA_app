@@ -41,13 +41,10 @@ or otherwise, without the prior written consent of KUKA Roboter GmbH.
 
 #include <fstream>
 #include <chrono>
-
 #include "friLBRClient.h"
 #include "exp_robots.h"
 #include "exp_trajs.h"
 
-#include <thread>         // std::thread
-#include <mutex>          // std::mutex
 
 using namespace KUKA::FRI;
 /**
@@ -113,13 +110,10 @@ private:
     double q_arr[7];
     double dq_arr[7];
 
-    Eigen::Matrix3d R_init;
-    Eigen::Vector3d p_init;
 
     // Time parameters for control loop
     double ts;
     double t;
-    double t_first;
 
     // The number of time steps for the simulation
     int n_step;
@@ -127,18 +121,51 @@ private:
     // Choose the body you want to control and the position on this body
     Eigen::Vector3d  p_curr;
     Eigen::Vector3d dp_curr;
-    MinimumJerkTrajectory *mjt_w;
 
     // The virtual task-space trajectory, position.
     Eigen::Vector3d p0;
+    Eigen::Vector3d p01;
+    Eigen::Vector3d p02;
+    Eigen::Vector3d p03;
+    Eigen::Vector3d p04;
+    Eigen::Vector3d p05;
+    Eigen::Vector3d p06;
+    Eigen::Vector3d p07;
+    Eigen::Vector3d p08;
+    Eigen::Vector3d p09;
+    Eigen::Vector3d p10;
+
     Eigen::Vector3d dp0;
-    Eigen::Vector3d w01;
-    Eigen::Vector3d offset;
+    Eigen::Vector3d dp01;
+    Eigen::Vector3d dp02;
+    Eigen::Vector3d dp03;
+    Eigen::Vector3d dp04;
+    Eigen::Vector3d dp05;
+    Eigen::Vector3d dp06;
+    Eigen::Vector3d dp07;
+    Eigen::Vector3d dp08;
+    Eigen::Vector3d dp09;
+    Eigen::Vector3d dp10;
+
+    double t_freq;
+
+    Eigen::Vector3d p0i;
+    Eigen::Vector3d delx;
+    Eigen::Vector3d delx1;
+    Eigen::Vector3d delx2;
+
+    Eigen::Vector3d dely;
+    Eigen::Vector3d dely1;
+    Eigen::Vector3d dely2;
+
+    Eigen::Vector3d delz;
+    Eigen::Vector3d delz1;
+    Eigen::Vector3d delz2;
 
     // Current position and velocity as Eigen vector
     Eigen::VectorXd q;
-    Eigen::VectorXd dq;
     Eigen::VectorXd q0_init;
+    Eigen::VectorXd dq;
 
     // Command torque vectors (with and without constraints)
     Eigen::VectorXd tau_ctrl;
@@ -150,13 +177,8 @@ private:
     Eigen::VectorXd tau_total;
 
     // DECLARE VARIABLES FOR YOUR CONTROLLER HERE!!!
-    double kr;
-    double br;
     Eigen::Matrix4d H;
     Eigen::MatrixXd J;
-
-    Eigen::MatrixXd dJH;
-
     Eigen::MatrixXd Jp;     // The position Jacobian
     Eigen::MatrixXd Jr;     // The rotation Jacobian
     Eigen::Matrix3d Kp;     // Task-space stiffness, position
@@ -167,36 +189,30 @@ private:
     Eigen::Matrix3d R_curr;  // SO(3) Matrix for the current orientation
     Eigen::Matrix3d R_des;   // SO(3) Matrix for the desired orientation
     Eigen::Matrix3d R_del;   // SO(3) Matrix for the desired orientation
-    Eigen::Matrix3d R_init_des;
 
-    Eigen::MatrixXd R_data;
-    Eigen::Vector3d w_axis;
-    Eigen::Vector3d wdel;
+    MinimumJerkTrajectory *mjt1;
+    MinimumJerkTrajectory *mjt2;
+    MinimumJerkTrajectory *mjt3;
+    MinimumJerkTrajectory *mjt4;
+    MinimumJerkTrajectory *mjt5;
+    MinimumJerkTrajectory *mjt6;
+    MinimumJerkTrajectory *mjt7;
+    MinimumJerkTrajectory *mjt8;
+    MinimumJerkTrajectory *mjt9;
+    MinimumJerkTrajectory *mjt10;
 
-    Eigen::MatrixXd dJH1_thread;
-    Eigen::MatrixXd dJH2_thread;
-    Eigen::MatrixXd dJH3_thread;
-    Eigen::MatrixXd dJH4_thread;
-    Eigen::MatrixXd dJH5_thread;
-    Eigen::MatrixXd dJH6_thread;
-    Eigen::MatrixXd dJH7_thread;
-
-    Eigen::MatrixXd dJH1;
-    Eigen::MatrixXd dJH2;
-    Eigen::MatrixXd dJH3;
-    Eigen::MatrixXd dJH4;
-    Eigen::MatrixXd dJH5;
-    Eigen::MatrixXd dJH6;
-    Eigen::MatrixXd dJH7;
+    double Kq_gain;
+    double  D  ;
+    double ti  ;
+    double toff;
 
     std::chrono::steady_clock::time_point start;
     std::chrono::steady_clock::time_point end;
 
-    // For multithreading
-
-    void call_dJacobians();
-    std::thread dJacobiansThread;
-    std::mutex mtx;
+    // The axis-angle of R_del
+    double theta;
+    Eigen::Matrix3d w_axis_mat;
+    Eigen::Vector3d w_axis;
 
     // File for Saving the Data
     std::ofstream f;

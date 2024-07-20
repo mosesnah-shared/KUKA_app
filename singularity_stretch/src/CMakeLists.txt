@@ -1,6 +1,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.2)
 
-PROJECT (TestKinematicStiffness)
+PROJECT (SingularityStretch)
+
 
 ## include directories
 set(includeDir
@@ -13,9 +14,6 @@ include_directories(${includeDir})
 
 ## make all source files visible in the IDE
 set(sourceFiles "")
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_package(Threads REQUIRED)
-
 file(GLOB_RECURSE sourceFiles ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp )
 
 ## add executable
@@ -35,13 +33,9 @@ endif()
 set(EXPLICIT_CPP_LIBRARY "${CMAKE_CURRENT_SOURCE_DIR}/../../../Libraries/Explicit-cpp/lib/libExplicit-cpp.so" CACHE STRING "Explicit-cpp library")
 set(FRI_LIBRARY "${CMAKE_CURRENT_SOURCE_DIR}/../../../Libraries/myFRIClient/lib/libFRIClient.a" CACHE STRING "FRI library")
 
-set(linkLibraries ${EXPLICIT_CPP_LIBRARY} ${FRI_LIBRARY})
-
-
 set(linkLibraries
 ${EXPLICIT_CPP_LIBRARY}
 ${FRI_LIBRARY}
-Threads::Threads
 )
 
 
@@ -49,7 +43,6 @@ Threads::Threads
 ##### SOME PARTS OF THE CODE GO INTO AN ADDITIONAL LIBRARY #####
 
 target_link_libraries(${PROJECT_NAME} ${linkLibraries})
-
 
 
 ## the output directory
