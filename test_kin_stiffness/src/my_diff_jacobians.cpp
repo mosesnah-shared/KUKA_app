@@ -1058,7 +1058,7 @@ Eigen::MatrixXd dJB_T_dq2(double q1, double q2, double q3, double q4, double q5,
                     -t139 * (t8 * (t43 - t89) + t15 * (t79 - t120)) + t137 * t160 - t153 * (t8 * (t73 + t13 * (t38 - t82)) - t15 * t159) + (t15 * t156 + t8 * (t51 - t103)) * (t143 + t7 * (t40 - t76)) + t161 * (t15 * t155 + t8 * (t47 - t101)) - t154 * (t15 * t157 - t8 * (t83 - t113)),
                     -t86 + t14 * (t42 - t74), 0.0, 0.0, 0.0, 0.0, 0.0, t154 * (t143 + t7 * (t40 - t76)) * 2.0 - t137 * t139 * 2.0 + t153 * t161 * 2.0;
 
-    return dJ_T_dq2_mat;
+    return dJ_T_dq2_mat.transpose( );
 }
 
 Eigen::MatrixXd dJB_T_dq3(double q1, double q2, double q3, double q4, double q5, double q6, double q7) {
@@ -1244,7 +1244,7 @@ Eigen::MatrixXd dJB_T_dq3(double q1, double q2, double q3, double q4, double q5,
                       -t157 * (t63 + t13 * (t34 - t74)) - t122 * (t140 + t7 * (t35 - t65)) + t84 * t135 + t123 * t173 - t159 * (t75 - t104) - (t38 - t82) * (t44 - t88),
                       t159 * (t140 + t7 * (t35 - t65)) * -2.0 + t157 * t173 * 2.0 - t135 * (t44 - t88) * 2.0;
 
-    return dJ_T_dq3_mat;
+    return dJ_T_dq3_mat.transpose( );
 }
 
 
