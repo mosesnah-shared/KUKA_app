@@ -236,8 +236,8 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude)
     Jr = Eigen::MatrixXd::Zero( 3, myLBR->nq );
 
     // The stiffness/damping matrices
-    Kp = 600 * Eigen::MatrixXd::Identity( 3, 3 );
-    Bp =  40 * Eigen::MatrixXd::Identity( 3, 3 );
+    Kp = 800 * Eigen::MatrixXd::Identity( 3, 3 );
+    Bp =  80 * Eigen::MatrixXd::Identity( 3, 3 );
 
     Kr =  70 * Eigen::MatrixXd::Identity( 3, 3 );
     Br =   5 * Eigen::MatrixXd::Identity( 3, 3 );
@@ -438,8 +438,8 @@ void MyLBRClient::command()
             {
                 amp = 0.15;
             }
-            p0_osc( 0 ) = amp*sin( ( t_pressed - 2 ) * M_PI/4 );
-            p0_osc( 1 ) = amp*cos( ( t_pressed - 2 ) * M_PI/4 );
+            p0_osc( 0 ) = amp*sin( ( t_pressed - 2 ) * M_PI/2 );
+            p0_osc( 1 ) = amp*cos( ( t_pressed - 2 ) * M_PI/2 );
         }
         p0 += p0_osc;
     }
@@ -449,8 +449,8 @@ void MyLBRClient::command()
     w_axis = so3_to_R3( SO3_to_so3( R_del ) );
 
     tau_imp1 = Jp.transpose( ) * ( Kp * ( p0 - p_curr ) + Bp * ( - dp_curr ) );
-    tau_imp2 = Kq * ( q0_init - q ) + Bq * ( -dq );
-    //    tau_imp2 = Bq * ( -dq );
+    //    tau_imp2 = Kq * ( q0_init - q ) + Bq * ( -dq );
+    tau_imp2 = Bq * ( -dq );
     tau_imp3 = Jr.transpose( ) * ( Kr * R_curr * w_axis - Br * Jr * dq );
 
     // Superposition of Mechanical Impedances
