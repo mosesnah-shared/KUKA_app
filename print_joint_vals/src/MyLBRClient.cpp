@@ -78,7 +78,7 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude){
     qInitial[6] =  0.000 * M_PI/180;
 
     // Use Explicit-cpp to create your robot
-    myLBR = new iiwa14( 1, "Dwight");
+    myLBR = new iiwa14( 1, "Dwight" );
     myLBR->init( );
 
     // Current position and velocitz
@@ -103,15 +103,8 @@ MyLBRClient::MyLBRClient(double freqHz, double amplitude){
     tau_prev_prev = Eigen::VectorXd::Zero( myLBR->nq );
     tau_total     = Eigen::VectorXd::Zero( myLBR->nq );
 
-    // ************************************************************
-    // INITIALIZE YOUR VECTORS AND MATRICES HERE
-    // ************************************************************
-    M = Eigen::MatrixXd::Zero( myLBR->nq, myLBR->nq );
-    H = Eigen::Matrix4d::Zero( 4, 4 );
-    J = Eigen::MatrixXd::Zero( 6, myLBR->nq );
-
     // Open a file
-    f.open( "pour_down1.txt" );
+    f.open( "test_kin_stiff_trial1.txt" );
     fmt = Eigen::IOFormat(5, 0, ", ", "\n", "[", "]");
 
     // Initial print

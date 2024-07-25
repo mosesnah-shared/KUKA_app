@@ -42,8 +42,7 @@ or otherwise, without the prior written consent of KUKA Roboter GmbH.
 #include "friLBRClient.h"
 #include "exp_robots.h"
 #include <fstream>
-
-
+#include "exp_trajs.h"
 
 using namespace KUKA::FRI;
 /**
@@ -103,22 +102,14 @@ private:
     // Double values to get measured robot values and command robot values
     double torques[7];
     double qInitial[7];
-    double xInitial[7];
     double qApplied[7];
     double qCurr[7];
     double qOld[7];
-    double q_arr[7];
-    double dq_arr[7];
-
 
     // Time parameters for control loop
-    double sampleTime;
-    double currentTime;
-
-
-    // Choose the body you want to control and the position on this body
-    signed int bodyIndex;
-    Eigen::Vector3d pointPosition;
+    double dt;
+    double t;
+    double t_pressed;
 
     // Current position and velocity as Eigen vector
     Eigen::VectorXd q;
@@ -130,9 +121,22 @@ private:
     Eigen::VectorXd tau_prev_prev;
     Eigen::VectorXd tau_total;
 
-    // File for Saving the Data
-    std::ofstream f;
-    Eigen::IOFormat fmt;
+    // Minimum-jerk trajectory to move to that location
+    MinimumJerkTrajectory *mjt_q;
+
+    Eigen::MatrixXd Kq;     // Joint-space stiffness.
+    Eigen::MatrixXd Bq;     // Joint-space damping.
+
+    // Reading the Data
+    Eigen::MatrixXd q_data;
+    Eigen::VectorXd q0;
+    Eigen::VectorXd q_init0;
+    Eigen::VectorXd q_init1;
+    int N_data;
+    int N_curr;
+    int n_step;
+
+    bool is_pressed;
 
 };
 
